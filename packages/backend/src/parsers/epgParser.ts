@@ -1,6 +1,18 @@
 import xml2js from 'xml2js';
+import zlib from 'zlib';
 import { makeLogger } from '../utils/logger';
 import env from '../config/env';
+
+/**
+ * Decode an XMLTV payload to text. Some providers (e.g. m3u4u) serve a .gz file
+ * without Content-Encoding, so fetch hands it back still compressed.
+ * Output is capped at EPG_MAX_BYTES so a small gzip cannot inflate into a huge string.
+ */
+export function decodeEPGBody(buf: Buffer): string {
+    const isGzip = buf.length >= 2 && buf[0] === 0x1f && buf[1] === 0x8b;
+    if (!isGzip) return buf.toString('utf8');
+    return zlib.gunzipSync(buf, { maxOutputLength: env.EPG_MAX_BYTES }).toString('utf8');
+}
 
 /**
  * Parse XMLTV EPG content into a channel-keyed object.

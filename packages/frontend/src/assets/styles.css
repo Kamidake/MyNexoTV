@@ -219,6 +219,10 @@ code {
     align-items: start;
 }
 
+/* Grid items default to min-width: auto, so the nowrap provider tabs would
+   widen the column past a phone screen. */
+.main-content > * { min-width: 0; }
+
 /* ═══════════════════════════════════════════════════════════
    Cards
 ═══════════════════════════════════════════════════════════ */

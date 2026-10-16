@@ -2,7 +2,7 @@
 
 import crypto from 'crypto';
 import { parseM3U } from '../parsers/m3uParser';
-import { parseEPG } from '../parsers/epgParser';
+import { parseEPG, decodeEPGBody } from '../parsers/epgParser';
 import { validatePublicUrl } from '../utils/validateUrl';
 import env from '../config/env';
 
@@ -111,7 +111,7 @@ export async function fetchData(addonInstance: any) {
                             const sizeMb = (contentLength / 1024 / 1024).toFixed(1);
                             addonInstance.log?.warn(`[EPG] Content-Length too large (${sizeMb} MB), skipping download`);
                         } else {
-                            const epgContent = await epgResp.text();
+                            const epgContent = decodeEPGBody(Buffer.from(await epgResp.arrayBuffer()));
                             addonInstance.epgData = await parseEPG(epgContent, addonInstance.log);
                             addonInstance.lastEpgUpdate = Date.now();
                         }
