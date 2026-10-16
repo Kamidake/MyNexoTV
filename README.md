@@ -45,8 +45,9 @@
 ### Use the public instance
 
 1. Open [the public configure page](https://263f84288ddb-nexotv.baby-beamup.club/configure).
-2. Pick a provider tab and fill in the fields.
-3. Click **Install addon**, then **Open in Stremio**.
+2. Pick a source type and fill in the fields.
+3. Click **Check and install**. The source check lists each step and counts the channels, groups, and programmes.
+4. When the check passes, click **Open in Stremio**.
 
 The public instance runs with the default settings, so the native TV guide is off there. To get it, self-host.
 
@@ -110,7 +111,7 @@ NexoTV is a live-TV addon, so the M3U tab skips Xtream movies and series (`/movi
 
 All three tabs accept a **Catalog name**, which replaces the addon name in Stremio's channel list. Xtream and M3U also take an EPG offset in hours, for guides published in the wrong time zone.
 
-To change an installed addon, open its configure page from Stremio. The page opens on the same tab with your settings filled in.
+To change an installed addon, open its configure page from Stremio. The page opens on the same source type with your settings filled in.
 
 ## Features
 
@@ -225,14 +226,14 @@ Stremio needs HTTPS for an addon on another machine. Plain `http://` works only 
 **I typed `http://your-host:7000/configure` and the page does not load.**
 `your-host` is a placeholder. Use `localhost` on the machine that runs NexoTV, or your own domain.
 
-**The install overlay stops at "Waiting for manifest".**
-The server could not build the channel list. Check the server log, and open the panel or playlist URL from the server to confirm it is reachable.
+**The source check fails.**
+The failed step in the log gives the reason, and the form field at fault shows it too. A failed program guide does not stop the install: the addon works with 0 programmes.
 
 **The program guide is empty.**
-The EPG fetch failed, timed out, or the file is larger than `EPG_MAX_BYTES`. Try a custom XMLTV URL, or raise `EPG_FETCH_TIMEOUT_MS` and `EPG_MAX_BYTES`.
+The **Program guide** step of the source check gives the reason. The EPG fetch failed, timed out, or the file is larger than `EPG_MAX_BYTES`. Try a custom XMLTV URL, or raise `EPG_FETCH_TIMEOUT_MS` and `EPG_MAX_BYTES`.
 
 **Program times are off by a few hours.**
-Set **EPG offset (hours)** on the configure page. Quarter hours are allowed, for example `-2.5`.
+Set **Guide time offset (hours)** under **Advanced options** on the configure page. Quarter hours are allowed, for example `-2.5`.
 
 **Xtream routes return `401` or `403`.**
 The panel rejected the credentials. Open the configure page from Stremio and enter them again.
