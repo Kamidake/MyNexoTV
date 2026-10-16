@@ -1,72 +1,64 @@
 <template>
-  <div class="app-container">
-    <TheHeader />
+  <div class="app-shell">
+    <aside class="rail">
+      <TheHeader />
 
-    <main class="main-content">
-      <section class="config-section">
-        <div class="card configurator-card">
-          <h2>Provider</h2>
+      <div class="guide-art" aria-hidden="true">
+        <div class="guide-row"><span style="flex: 3"></span><span class="on" style="flex: 5"></span><span style="flex: 2"></span></div>
+        <div class="guide-row"><span style="flex: 5"></span><span class="on" style="flex: 3"></span><span style="flex: 2"></span></div>
+        <div class="guide-row"><span style="flex: 2"></span><span class="on" style="flex: 4"></span><span style="flex: 4"></span></div>
+        <div class="guide-row"><span style="flex: 4"></span><span class="on" style="flex: 4"></span><span style="flex: 2"></span></div>
+        <div class="guide-now"></div>
+      </div>
 
-          <!-- Provider Tabs -->
-          <div class="provider-tabs" role="tablist">
-            <button class="tab-btn" :class="{ active: activeTab === 'iptv-org' }"
-              id="tab-iptv-org" role="tab"
-              :aria-selected="activeTab === 'iptv-org'"
-              aria-controls="panel-iptv-org"
-              @click="activeTab = 'iptv-org'">
-              IPTV-org <span class="tab-badge">Free</span>
-            </button>
-            <button class="tab-btn" :class="{ active: activeTab === 'xtream' }"
-              id="tab-xtream" role="tab"
-              :aria-selected="activeTab === 'xtream'"
-              aria-controls="panel-xtream"
-              @click="activeTab = 'xtream'">
-              Xtream API
-            </button>
-            <button class="tab-btn" :class="{ active: activeTab === 'm3u' }"
-              id="tab-m3u" role="tab"
-              :aria-selected="activeTab === 'm3u'"
-              aria-controls="panel-m3u"
-              @click="activeTab = 'm3u'">
-              M3U / M3U+
-            </button>
-          </div>
+      <footer class="rail-foot">
+        <a href="https://github.com/joaosavi/nexotv" target="_blank" rel="noopener">Source on GitHub</a>
+        <span>By <a href="https://github.com/joaosavi" target="_blank" rel="noopener">joaosavi</a></span>
+      </footer>
+    </aside>
 
-          <!-- Tab Panels -->
-          <div id="panel-iptv-org" class="tab-panel" :class="{ active: activeTab === 'iptv-org' }"
-            role="tabpanel" aria-labelledby="tab-iptv-org">
-            <IptvOrgConfig v-if="activeTab === 'iptv-org'" />
-          </div>
+    <main class="console">
+      <div class="provider-tabs" role="tablist" aria-label="Provider">
+        <button class="tab-btn" :class="{ active: activeTab === 'iptv-org' }"
+          id="tab-iptv-org" role="tab"
+          :aria-selected="activeTab === 'iptv-org'"
+          aria-controls="panel-iptv-org"
+          @click="activeTab = 'iptv-org'">
+          <span class="tab-name">IPTV-org</span>
+          <span class="tab-meta">Free public channels</span>
+        </button>
+        <button class="tab-btn" :class="{ active: activeTab === 'xtream' }"
+          id="tab-xtream" role="tab"
+          :aria-selected="activeTab === 'xtream'"
+          aria-controls="panel-xtream"
+          @click="activeTab = 'xtream'">
+          <span class="tab-name">Xtream API</span>
+          <span class="tab-meta">Your panel login</span>
+        </button>
+        <button class="tab-btn" :class="{ active: activeTab === 'm3u' }"
+          id="tab-m3u" role="tab"
+          :aria-selected="activeTab === 'm3u'"
+          aria-controls="panel-m3u"
+          @click="activeTab = 'm3u'">
+          <span class="tab-name">M3U / M3U+</span>
+          <span class="tab-meta">Any playlist URL</span>
+        </button>
+      </div>
 
-          <div id="panel-xtream" class="tab-panel" :class="{ active: activeTab === 'xtream' }"
-            role="tabpanel" aria-labelledby="tab-xtream">
-            <XtreamConfig v-if="activeTab === 'xtream'" />
-          </div>
+      <div id="panel-iptv-org" class="tab-panel" :class="{ active: activeTab === 'iptv-org' }"
+        role="tabpanel" aria-labelledby="tab-iptv-org">
+        <IptvOrgConfig v-if="activeTab === 'iptv-org'" />
+      </div>
 
-          <div id="panel-m3u" class="tab-panel" :class="{ active: activeTab === 'm3u' }"
-            role="tabpanel" aria-labelledby="tab-m3u">
-            <M3uConfig v-if="activeTab === 'm3u'" />
-          </div>
-        </div>
-      </section>
+      <div id="panel-xtream" class="tab-panel" :class="{ active: activeTab === 'xtream' }"
+        role="tabpanel" aria-labelledby="tab-xtream">
+        <XtreamConfig v-if="activeTab === 'xtream'" />
+      </div>
 
-      <section class="about-section">
-        <div class="card about-card">
-          <h2>About</h2>
-          <p>Connect your IPTV service to Stremio. Choose from free public channels, your Xtream Codes
-            subscription, or any M3U playlist URL.</p>
-          <ul class="feature-list">
-            <li><strong>IPTV-org</strong> – thousands of free public channels, no credentials needed.</li>
-            <li><strong>Xtream API</strong> – connects your subscription panel (live TV only).</li>
-            <li><strong>M3U / M3U+</strong> – paste any playlist URL; EPG auto-detected from header.</li>
-            <li><strong>EPG</strong> – panel XMLTV, custom XMLTV URL, or auto-detected.</li>
-            <li><strong>EPG offset</strong> – adjusts programme times for timezone correction.</li>
-          </ul>
-          <div class="credits">
-            <p>By <a href="https://github.com/joaosavi" target="_blank" rel="noopener">joaosavi</a></p>
-          </div>
-        </div>
-      </section>
+      <div id="panel-m3u" class="tab-panel" :class="{ active: activeTab === 'm3u' }"
+        role="tabpanel" aria-labelledby="tab-m3u">
+        <M3uConfig v-if="activeTab === 'm3u'" />
+      </div>
     </main>
 
     <TheOverlay

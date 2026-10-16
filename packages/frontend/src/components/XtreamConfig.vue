@@ -6,7 +6,6 @@
         <label for="xtreamUrl">Base URL <span class="req">*</span></label>
         <input type="url" id="xtreamUrl" v-model="form.xtreamUrl" required
           placeholder="http://panel.example.com:8080">
-        <small class="hint">Do not include a trailing slash.</small>
       </div>
       <div class="form-group">
         <label for="xtreamUsername">Username <span class="req">*</span></label>
@@ -22,14 +21,14 @@
     </fieldset>
 
     <fieldset>
-      <legend>EPG Options</legend>
+      <legend>Program guide</legend>
       <div class="form-group checkbox-line">
         <input type="checkbox" id="enableEpg" v-model="form.enableEpg">
         <label class="checkbox-label" for="enableEpg">Enable EPG</label>
       </div>
 
       <div v-if="form.enableEpg" class="form-group">
-        <label class="group-label">EPG Source Mode</label>
+        <label class="group-label">EPG source</label>
         <div class="radio-group">
           <label class="checkbox-line">
             <input type="radio" name="epgMode" value="xtream" v-model="form.epgMode">
@@ -43,21 +42,20 @@
       </div>
 
       <div v-if="form.enableEpg && form.epgMode === 'custom'" class="form-group">
-        <label for="customEpgUrl">Custom EPG XML URL</label>
+        <label for="customEpgUrl">XMLTV URL</label>
         <input type="url" id="customEpgUrl" v-model="form.customEpgUrl"
           placeholder="https://example.com/epg.xml">
-        <small class="hint">Used instead of panel xmltv.php when selected.</small>
       </div>
 
       <div class="form-group">
-        <label for="epgOffsetHours">EPG Offset (hours)</label>
+        <label for="epgOffsetHours">EPG offset (hours)</label>
         <input type="number" step="0.25" id="epgOffsetHours" v-model.number="form.epgOffsetHours"
           placeholder="0">
       </div>
 
       <div class="form-group checkbox-line">
         <input type="checkbox" id="reformatLogos" v-model="form.reformatLogos">
-        <label class="checkbox-label" for="reformatLogos">Reformat Logos
+        <label class="checkbox-label" for="reformatLogos">Reformat logos
           <span class="hint">(may slow down loading)</span></label>
       </div>
     </fieldset>
@@ -65,20 +63,16 @@
     <fieldset>
       <legend>Display</legend>
       <div class="form-group">
-        <label for="catalogName">Catalog Name</label>
+        <label for="catalogName">Catalog name</label>
         <input type="text" id="catalogName" v-model="form.catalogName"
           :placeholder="addonName">
-        <small class="hint">Name shown in Stremio's channel list. Leave blank to use the default.</small>
+        <small class="hint">Shown in Stremio's channel list.</small>
       </div>
     </fieldset>
 
     <div class="form-actions">
       <button type="submit" class="btn primary">
-        Install Addon
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-          stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M5 12h14M12 5l7 7-7 7"/>
-        </svg>
+        Install addon
       </button>
     </div>
   </form>

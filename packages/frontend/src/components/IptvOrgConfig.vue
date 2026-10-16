@@ -1,19 +1,8 @@
 <template>
   <form class="config-form" autocomplete="off" @submit.prevent="handleSubmit">
     <fieldset>
-      <legend>Channel Filter</legend>
+      <legend>Channels</legend>
 
-      <div class="info-banner">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-          stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="12" cy="12" r="10"></circle>
-          <path d="M12 16v-4M12 8h.01"></path>
-        </svg>
-        <span>
-          Uses the free <strong>iptv-org</strong> community database (~50k channels
-          from 200+ countries). No credentials needed. Use the filters below to narrow down the list.
-        </span>
-      </div>
 
       <div class="form-group">
         <label>Country</label>
@@ -25,7 +14,7 @@
             </span>
           </div>
           <input type="text" class="searchable-select-input" v-model="countrySearch"
-            placeholder="All Countries (search to filter…)" autocomplete="off"
+            placeholder="All countries" autocomplete="off"
             @focus="countryOpen = true" @blur="onCountryBlur" @input="countryOpen = true"
             @keydown="onCountryKeydown">
           <ul v-show="countryOpen" class="searchable-select-dropdown" ref="countryListEl">
@@ -37,7 +26,6 @@
             </li>
           </ul>
         </div>
-        <small class="hint">Leave blank to include all countries.</small>
       </div>
 
       <div class="form-group">
@@ -50,7 +38,7 @@
             </span>
           </div>
           <input type="text" class="searchable-select-input" v-model="categorySearch"
-            placeholder="All Categories (search to filter…)" autocomplete="off"
+            placeholder="All categories" autocomplete="off"
             @focus="categoryOpen = true" @blur="onCategoryBlur" @input="categoryOpen = true"
             @keydown="onCategoryKeydown">
           <ul v-show="categoryOpen" class="searchable-select-dropdown" ref="categoryListEl">
@@ -62,27 +50,22 @@
             </li>
           </ul>
         </div>
-        <small class="hint">Leave blank to include all categories.</small>
       </div>
     </fieldset>
 
     <fieldset>
       <legend>Display</legend>
       <div class="form-group">
-        <label for="iptvCatalogName">Catalog Name</label>
+        <label for="iptvCatalogName">Catalog name</label>
         <input type="text" id="iptvCatalogName" v-model="catalogName"
           placeholder="NexoTV">
-        <small class="hint">Name shown in Stremio's channel list. Leave blank to use the default.</small>
+        <small class="hint">Shown in Stremio's channel list.</small>
       </div>
     </fieldset>
 
     <div class="form-actions">
       <button type="submit" class="btn primary" id="iptv-org-submit">
-        Install Addon
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-          stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M5 12h14M12 5l7 7-7 7"/>
-        </svg>
+        Install addon
       </button>
     </div>
   </form>
