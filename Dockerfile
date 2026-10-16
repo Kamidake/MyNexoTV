@@ -1,31 +1,35 @@
-FROM node:18-alpine
+# syntax=docker/dockerfile:1
 
+# ── Build: compile the frontend and the backend ─────────────────────────────
+FROM node:22-alpine AS build
 WORKDIR /app
-
-# Build tools for native modules (better-sqlite3)
-RUN apk add --no-cache python3 build-base
-
-# Install pnpm
-RUN npm install -g pnpm@latest
-
-# Install ALL workspace deps (backend native modules + frontend Vue toolchain)
+RUN apk add --no-cache python3 build-base && corepack enable
 COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
 COPY packages/backend/package.json ./packages/backend/
 COPY packages/frontend/package.json ./packages/frontend/
-RUN pnpm install
+RUN pnpm install --frozen-lockfile
+COPY packages/ ./packages/
+RUN pnpm build
 
-# Remove build tools after native compilation
-RUN apk del python3 build-base
+# ── Production dependencies of the backend only ─────────────────────────────
+FROM node:22-alpine AS deps
+WORKDIR /app
+RUN apk add --no-cache python3 build-base && corepack enable
+COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
+COPY packages/backend/package.json ./packages/backend/
+COPY packages/frontend/package.json ./packages/frontend/
+RUN pnpm install --frozen-lockfile --prod --filter @nexotv/backend
 
-# Build frontend (Vue + Vite)
-COPY packages/frontend/ ./packages/frontend/
-RUN pnpm --filter @nexotv/frontend build
-
-# Build backend (TypeScript)
-COPY packages/backend/ ./packages/backend/
-RUN pnpm --filter @nexotv/backend build
-
-# Copy runtime config and create data dir
+# ── Runtime ─────────────────────────────────────────────────────────────────
+FROM node:22-alpine
+WORKDIR /app
+ENV NODE_ENV=production
+COPY pnpm-workspace.yaml package.json ./
+COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app/packages/backend/node_modules ./packages/backend/node_modules
+COPY --from=build /app/packages/backend/package.json ./packages/backend/
+COPY --from=build /app/packages/backend/dist ./packages/backend/dist
+COPY --from=build /app/packages/frontend/dist ./packages/frontend/dist
 COPY config/ ./config/
 RUN mkdir -p /app/data
 
