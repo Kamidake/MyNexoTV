@@ -41,6 +41,15 @@ export interface AddonConfig {
     globalUserAgent?: string;
 }
 
+/**
+ * The native Stremio guide holds days of programmes per channel, so it stays
+ * off unless the host opts in with EPG_NATIVE_ENABLED (self-hosted instances).
+ */
+export function isNativeEpg(config: AddonConfig) {
+    const provider = config.provider || 'xtream';
+    return env.EPG_NATIVE_ENABLED && !!config.enableEpg && (provider === 'm3u' || provider === 'xtream');
+}
+
 function stableStringify(obj: any) {
     return JSON.stringify(obj, Object.keys(obj).sort());
 }
@@ -104,6 +113,7 @@ export class M3UEPGAddon {
     private _timerConsecutiveFailures = 0;
     private _timerPausedUntil: number | null = null;
     cacheTtl: number;
+    nativeEpg: boolean;
     log: ReturnType<typeof makeLogger>;
 
     constructor(config: AddonConfig = {}, manifestRef?: any) {
@@ -132,6 +142,7 @@ export class M3UEPGAddon {
             'm3u': env.M3U_CACHE_TTL_MS,
         };
         this.cacheTtl = TTL_MAP[this.providerName] ?? CACHE_TTL_MS;
+        this.nativeEpg = isNativeEpg(config);
         this.log = makeLogger();
 
         if (typeof this.config.epgOffsetHours === 'string') {
@@ -184,16 +195,20 @@ export class M3UEPGAddon {
         }
     }
 
+    epgCacheKey() {
+        return 'addon:epg:' + this.cacheKey + (this.nativeEpg ? ':native' : '');
+    }
+
     async saveEpgToCache() {
         if (!CACHE_ENABLED) return;
         if (!this.epgData || Object.keys(this.epgData).length === 0) return;
-        sqliteCache.set('addon:epg:' + this.cacheKey, { epgData: this.epgData }, this.cacheTtl);
+        sqliteCache.set(this.epgCacheKey(), { epgData: this.epgData }, this.cacheTtl);
         this.log.debug('EPG saved to cache', { channels: Object.keys(this.epgData).length });
     }
 
     async loadEpgFromCache() {
         if (!CACHE_ENABLED) return;
-        const cached = sqliteCache.get('addon:epg:' + this.cacheKey);
+        const cached = sqliteCache.get(this.epgCacheKey());
         if (cached) {
             this.epgData = cached.epgData || {};
             this.log.debug('EPG loaded from cache', { channels: Object.keys(this.epgData).length });
@@ -302,7 +317,7 @@ export class M3UEPGAddon {
             this.xtreamEtag = null;
             if (CACHE_ENABLED) {
                 sqliteCache.del('addon:channels:' + this.cacheKey);
-                sqliteCache.del('addon:epg:' + this.cacheKey);
+                sqliteCache.del(this.epgCacheKey());
             }
             await this.updateData(true);
             this.firstCatalogRefreshDone = true;
@@ -357,6 +372,41 @@ export class M3UEPGAddon {
                 ? [item.category]
                 : (item.attributes?.['group-title'] ? [item.attributes['group-title']] : ['Live TV']),
             runtime: 'Live'
+        };
+    }
+
+    getProgrammeVideos(item: any, from = -Infinity, to = Infinity) {
+        const epgId = item.attributes?.['tvg-id'] || item.attributes?.['tvg-name'];
+        const programmes = epgId ? this.epgData[epgId] : undefined;
+        if (!programmes) return [];
+        const offsetMs = (this.config.epgOffsetHours as number) * 3600000;
+        const videos: any[] = [];
+        for (const p of programmes) {
+            const start = p.start + offsetMs;
+            const stop = p.stop + offsetMs;
+            if (stop <= start || stop <= from || start >= to) continue;
+            const startTime = new Date(start).toISOString();
+            videos.push({
+                id: `${item.id}:epg:${startTime}`,
+                title: p.title,
+                overview: p.desc || undefined,
+                released: startTime,
+                startTime,
+                endTime: new Date(stop).toISOString(),
+                runtime: `${Math.round((stop - start) / 60000)} min`,
+            });
+        }
+        return videos;
+    }
+
+    /** Full meta for one channel on the native guide grid for a UTC day (YYYY-MM-DD). */
+    generateGuideMeta(item: any, date: string) {
+        const dayStart = Date.parse(`${date}T00:00:00.000Z`);
+        const dayEnd = dayStart + 24 * 3600000;
+        return {
+            ...this.generateMetaPreview(item),
+            behaviorHints: { isLive: true, hasScheduledVideos: true },
+            videos: this.getProgrammeVideos(item, dayStart, dayEnd),
         };
     }
 
@@ -427,7 +477,11 @@ export class M3UEPGAddon {
             genres: item.category
                 ? [item.category]
                 : (item.attributes?.['group-title'] ? [item.attributes['group-title']] : ['Live TV']),
-            runtime: 'Live'
+            runtime: 'Live',
+            ...(this.nativeEpg ? {
+                behaviorHints: { isLive: true, hasScheduledVideos: true },
+                videos: this.getProgrammeVideos(item, Date.now() - 3 * 3600000),
+            } : {}),
         };
     }
 

@@ -95,6 +95,7 @@ Click **Install Addon** → **Open in Stremio**.
 
 - XMLTV from Xtream panel, embedded playlist header, or a custom URL
 - Current programme and upcoming schedule shown in Stremio's meta panel
+- Native Stremio TV guide on self-hosted instances: set `EPG_NATIVE_ENABLED=true` and the catalog opens as a programme grid in Discover. It is off by default because it keeps days of programmes per user in RAM
 
 ### Custom Catalog Name
 
@@ -159,6 +160,8 @@ NexoTV uses a three-layer cache to stay fast with hundreds of concurrent users:
 | `UPDATE_INTERVAL_MS`     | `14400000` | Background re-fetch interval (4h)                          |
 | `EPG_UPDATE_INTERVAL_MS` | `28800000` | EPG re-fetch interval (8h)                                 |
 | `MIN_UPDATE_INTERVAL_MS` | `1800000`  | Minimum time between re-fetches (30m)                      |
+| `EPG_NATIVE_ENABLED`     | `false`    | Native Stremio TV guide; keeps the full schedule in RAM    |
+| `EPG_NATIVE_DAYS`        | `2`        | Days of schedule kept ahead for the native guide (1 to 7)  |
 
 ### Limits & Timeouts
 

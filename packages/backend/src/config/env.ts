@@ -47,6 +47,8 @@ const env = {
     MIN_UPDATE_INTERVAL_MS: parseInt(process.env.MIN_UPDATE_INTERVAL_MS || '1800000', 10),
     EPG_UPDATE_INTERVAL_MS: parseInt(process.env.EPG_UPDATE_INTERVAL_MS || '') || 28800000,
     EPG_MAX_BYTES: parseInt(process.env.EPG_MAX_BYTES || '104857600', 10),
+    EPG_NATIVE_ENABLED: (process.env.EPG_NATIVE_ENABLED || 'false').toLowerCase() === 'true',
+    EPG_NATIVE_DAYS: Math.min(Math.max(parseInt(process.env.EPG_NATIVE_DAYS || '2', 10) || 2, 1), 7),
     CATALOG_PAGE_SIZE: parseInt(process.env.CATALOG_PAGE_SIZE || '100', 10),
     FETCH_TIMEOUT_MS: parseInt(process.env.FETCH_TIMEOUT_MS || '30000', 10),
     EPG_FETCH_TIMEOUT_MS: parseInt(process.env.EPG_FETCH_TIMEOUT_MS || '60000', 10),
