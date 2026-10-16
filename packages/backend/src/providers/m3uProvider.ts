@@ -1,21 +1,12 @@
 'use strict';
 
 import crypto from 'crypto';
-import { parseM3U } from '../parsers/m3uParser';
+import { Readable } from 'stream';
+import { parseM3UStream, M3UTooLargeError } from '../parsers/m3uParser';
 import { validatePublicUrl } from '../utils/validateUrl';
 import env from '../config/env';
 import { SourceReport, describeFetchError, describeHttpStatus, formatCount, hostOf } from '../addon/sourceReport';
 import { loadGuide } from './guide';
-
-async function withTimeout(url: string, options: any, ms: number) {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), ms);
-    try {
-        return await fetch(url, { ...options, signal: controller.signal });
-    } finally {
-        clearTimeout(timer);
-    }
-}
 
 /**
  * Derive a stable 12-char hex ID for a channel.
@@ -47,10 +38,24 @@ export async function fetchData(addonInstance: any) {
     }
 
     let resp: Response;
-    let text: string;
+    let parsedResult: Awaited<ReturnType<typeof parseM3UStream>>;
+    let parseStarted = Date.now();
+    let headersReceived = false;
     try {
         await validatePublicUrl(m3uUrl);
-        resp = await withTimeout(m3uUrl, { headers: conditionalHeaders }, env.FETCH_TIMEOUT_MS);
+        // FETCH_TIMEOUT_MS bounds the wait for the response headers. The body is
+        // parsed while it downloads and gets the longer M3U_DOWNLOAD_TIMEOUT_MS:
+        // an 80 MB m3u_plus list takes more than 30 s on a busy link.
+        const headerDeadline = new AbortController();
+        const headerTimer = setTimeout(() => headerDeadline.abort(new DOMException('Timed out', 'TimeoutError')), env.FETCH_TIMEOUT_MS);
+        try {
+            resp = await fetch(m3uUrl, {
+                headers: conditionalHeaders,
+                signal: AbortSignal.any([headerDeadline.signal, AbortSignal.timeout(env.M3U_DOWNLOAD_TIMEOUT_MS)]),
+            });
+        } finally {
+            clearTimeout(headerTimer);
+        }
         if (resp.status === 304) {
             addonInstance.log?.debug('M3U 304 Not Modified: skipping parse');
             report.ok('playlist', 'Playlist download', started, `${host} · not changed since the last download`);
@@ -60,13 +65,20 @@ export async function fetchData(addonInstance: any) {
             throw report.failWith('playlist', 'Playlist download', started,
                 describeHttpStatus(resp.status, host, 'playlist'), 'm3uUrl');
         }
-        text = await resp.text();
+        parseStarted = Date.now();
+        headersReceived = true;
+        parsedResult = await parseM3UStream(
+            resp.body ? Readable.fromWeb(resp.body as any) : [],
+            { includeVod: env.M3U_INCLUDE_VOD, maxBytes: env.M3U_MAX_BYTES },
+        );
     } catch (e) {
         if (report.hasFailed('playlist')) throw e;
-        throw report.failWith('playlist', 'Playlist download', started,
-            describeFetchError(e, m3uUrl, env.FETCH_TIMEOUT_MS), 'm3uUrl');
+        const detail = e instanceof M3UTooLargeError
+            ? `The playlist is larger than ${formatCount(Math.round(e.maxBytes / 1024 / 1024))} MB, the limit on this server.`
+            : describeFetchError(e, m3uUrl, headersReceived ? env.M3U_DOWNLOAD_TIMEOUT_MS : env.FETCH_TIMEOUT_MS);
+        throw report.failWith('playlist', 'Playlist download', started, detail, 'm3uUrl');
     }
-    report.ok('playlist', 'Playlist download', started, `${host} · ${formatCount(Math.ceil(Buffer.byteLength(text) / 1024))} KB`);
+    report.ok('playlist', 'Playlist download', started, `${host} · ${formatCount(Math.ceil(parsedResult.bytes / 1024))} KB`);
 
     addonInstance.m3uEtag = resp.headers.get('etag') ?? null;
     addonInstance.m3uLastModified = resp.headers.get('last-modified') ?? null;
@@ -74,8 +86,7 @@ export async function fetchData(addonInstance: any) {
     addonInstance.channels = [];
     addonInstance.epgData = {};
 
-    const parseStarted = Date.now();
-    const { channels: parsed, epgUrl: detectedEpgUrl, vodSkipped } = parseM3U(text, { includeVod: env.M3U_INCLUDE_VOD });
+    const { channels: parsed, epgUrl: detectedEpgUrl, vodSkipped } = parsedResult;
     report.vodSkipped = vodSkipped;
     if (vodSkipped > 0) {
         addonInstance.log?.debug(`M3U skipped ${vodSkipped} VOD entries (movie/series); set M3U_INCLUDE_VOD=true to keep them`);

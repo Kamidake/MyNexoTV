@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseM3U, isVodUrl } from '../../src/parsers/m3uParser';
+import { parseM3U, isVodUrl, parseM3UStream, M3UTooLargeError } from '../../src/parsers/m3uParser';
 import { SAMPLE_M3U, MALFORMED_M3U, generateLargeM3U } from '../helpers/fixtures';
 
 describe('parseM3U', () => {
@@ -150,5 +150,52 @@ describe('isVodUrl', () => {
     'rtmp://movie',
   ])('keeps the live URL %s', (url) => {
     expect(isVodUrl(url)).toBe(false);
+  });
+});
+
+// ─── parseM3UStream ──────────────────────────────────────────────────────────
+
+describe('parseM3UStream', () => {
+  const playlist = [
+    '#EXTM3U url-tvg="http://epg.example.com/guide.xml"',
+    '#EXTINF:-1 tvg-id="globo.br" group-title="Abertos",Globo São Paulo',
+    'http://example.com/live/user/pass/1.m3u8',
+    '#EXTINF:-1 group-title="Filmes",Um Filme',
+    'http://example.com/movie/user/pass/2.mp4',
+    '#EXTINF:-1 group-title="Esportes",ESPN',
+    'http://example.com/user/pass/3',
+  ].join('\r\n');
+  const chunks = (text: string, size: number) => {
+    const buf = Buffer.from(text);
+    const out: Buffer[] = [];
+    for (let i = 0; i < buf.length; i += size) out.push(buf.subarray(i, i + size));
+    return out;
+  };
+
+  it('matches parseM3U for any chunk size, including cuts inside a UTF-8 character or a CRLF', async () => {
+    const expected = parseM3U(playlist);
+    for (const size of [1, 2, 3, 7, 64, 100000]) {
+      const result = await parseM3UStream(chunks(playlist, size), { maxBytes: 1e6 });
+      expect(result.channels).toEqual(expected.channels);
+      expect(result.epgUrl).toBe(expected.epgUrl);
+      expect(result.vodSkipped).toBe(1);
+      expect(result.bytes).toBe(Buffer.byteLength(playlist));
+    }
+    expect(expected.channels.map(c => c.name)).toEqual(['Globo São Paulo', 'ESPN']);
+  });
+
+  it('keeps VOD entries when includeVod is set', async () => {
+    const result = await parseM3UStream(chunks(playlist, 16), { includeVod: true, maxBytes: 1e6 });
+    expect(result.channels).toHaveLength(3);
+    expect(result.vodSkipped).toBe(0);
+  });
+
+  it('parses a last line without a trailing newline', async () => {
+    const result = await parseM3UStream(['#EXTINF:-1,Solo\nhttp://example.com/solo.m3u8'], { maxBytes: 1e6 });
+    expect(result.channels.map(c => c.url)).toEqual(['http://example.com/solo.m3u8']);
+  });
+
+  it('stops reading once the playlist passes maxBytes', async () => {
+    await expect(parseM3UStream(chunks(playlist, 32), { maxBytes: 100 })).rejects.toBeInstanceOf(M3UTooLargeError);
   });
 });
