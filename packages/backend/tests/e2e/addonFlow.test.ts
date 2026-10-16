@@ -366,3 +366,23 @@ describe('token handling, end to end', () => {
         expect(res.status).toBe(400);
     });
 });
+
+describe('channel artwork shape, end to end', () => {
+    it('keeps portrait artwork by default and switches to 16:9 when asked', async () => {
+        const cfg = { provider: 'm3u', m3uUrl: `${base}/list.m3u` };
+        const portrait = (await request(app).get(`/${token(cfg)}/catalog/tv/iptv_channels.json`)).body.metas[0];
+        expect(portrait.posterShape).toBe('poster');
+        expect(portrait.poster).toContain('w=250&h=375');
+
+        const wide = (await request(app).get(`/${token({ ...cfg, posterShape: 'landscape' })}/catalog/tv/iptv_channels.json`)).body.metas[0];
+        expect(wide.posterShape).toBe('landscape');
+        expect(wide.poster).toContain('w=480&h=270');
+    });
+
+    it('leaves the cache key and channel ids unchanged for the default shape', async () => {
+        const { createCacheKey } = await import('../../src/addon/M3UEPGAddon');
+        const cfg = { provider: 'm3u', m3uUrl: 'http://example.com/list.m3u' };
+        expect(createCacheKey({ ...cfg, posterShape: 'poster' })).toBe(createCacheKey(cfg));
+        expect(createCacheKey({ ...cfg, posterShape: 'landscape' })).not.toBe(createCacheKey(cfg));
+    });
+});

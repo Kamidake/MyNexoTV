@@ -28,7 +28,9 @@ export interface M3uConfig {
   globalUserAgent?: string;
 }
 
-export type AddonConfig = (XtreamConfig | IptvOrgConfig | M3uConfig) & { catalogName?: string };
+export type PosterShape = 'poster' | 'landscape';
+
+export type AddonConfig = (XtreamConfig | IptvOrgConfig | M3uConfig) & { catalogName?: string; posterShape?: PosterShape };
 
 export interface AddonInfo {
   name: string;

@@ -60,6 +60,7 @@
           <label for="iptvCatalogName">Catalog name</label>
           <input type="text" id="iptvCatalogName" v-model="catalogName" :placeholder="addonName">
         </div>
+        <PosterShapeField id="iptvPosterShape" v-model="posterShape" />
       </AdvancedPanel>
     </StepBlock>
 
@@ -76,15 +77,17 @@
 import { ref, computed, onMounted } from 'vue'
 import StepBlock from './StepBlock.vue'
 import AdvancedPanel from './AdvancedPanel.vue'
+import PosterShapeField from './PosterShapeField.vue'
 import { useDecodedToken } from '../composables/useDecodedToken'
 import { useAddonInfo } from '../composables/useAddonInfo'
 import { useSourceCheck } from '../composables/useSourceCheck'
-import type { IptvOrgConfig } from '../types/config'
+import type { IptvOrgConfig, AddonConfig, PosterShape } from '../types/config'
 
 const check = useSourceCheck()
 const { info: addonInfo } = useAddonInfo()
 const addonName = computed(() => addonInfo.value?.name ?? 'NexoTV')
 const catalogName = ref('')
+const posterShape = ref<PosterShape>('poster')
 const advancedOpen = ref(false)
 const listError = ref('')
 
@@ -222,7 +225,8 @@ onMounted(async () => {
           .filter(Boolean) as SelectItem[]
       }
       catalogName.value = decodedConfig.catalogName || ''
-      advancedOpen.value = !!catalogName.value
+      posterShape.value = decodedConfig.posterShape === 'landscape' ? 'landscape' : 'poster'
+      advancedOpen.value = !!catalogName.value || posterShape.value === 'landscape'
     }
   } catch (err) {
     console.error('[IPTV-ORG] Failed to load countries/categories', err)
@@ -233,11 +237,12 @@ onMounted(async () => {
 async function handleSubmit() {
   const country = selectedCountries.value.map(c => c.value).join(',') || null
   const category = selectedCategories.value.map(c => c.value).join(',') || null
-  const config: IptvOrgConfig & { catalogName?: string } = {
+  const config: AddonConfig = {
     provider: 'iptv-org',
     iptvOrgCountry: country,
     iptvOrgCategory: category,
     ...(catalogName.value.trim() ? { catalogName: catalogName.value.trim() } : {}),
+    ...(posterShape.value === 'landscape' ? { posterShape: 'landscape' as const } : {}),
   }
   await check.run(config)
 }
@@ -248,6 +253,7 @@ function resetForm() {
   countrySearch.value = ''
   categorySearch.value = ''
   catalogName.value = ''
+  posterShape.value = 'poster'
   advancedOpen.value = false
   check.reset()
 }
