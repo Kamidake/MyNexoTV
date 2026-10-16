@@ -106,6 +106,8 @@ Stremio installs remote addons only over HTTPS. It accepts plain `http://` for `
 | **Xtream API** | Panel URL, username, and password. Live TV only. | The panel's `xmltv.php`, or a custom XMLTV URL |
 | **M3U / M3U+** | A playlist URL, including Xtream `type=m3u_plus` links | The playlist's `url-tvg` header, or a custom XMLTV URL |
 
+NexoTV is a live-TV addon, so the M3U tab skips Xtream movies and series (`/movie/` and `/series/` URLs) by default. Set `M3U_INCLUDE_VOD=true` to keep them.
+
 All three tabs accept a **Catalog name**, which replaces the addon name in Stremio's channel list. Xtream and M3U also take an EPG offset in hours, for guides published in the wrong time zone.
 
 To change an installed addon, open its configure page from Stremio. The page opens on the same tab with your settings filled in.
@@ -148,6 +150,7 @@ All variables are optional. The defaults below are the values in [`packages/back
 | `CONFIG_SECRET` | _(unset)_ | Encrypts tokens with AES-256-GCM. At least 16 characters. Set it on every public instance |
 | `DEBUG_MODE` | `false` | Verbose logging |
 | `ALLOW_LOCAL_URLS` | `false` | Allows `localhost` and private IPs as sources. For local testing only |
+| `M3U_INCLUDE_VOD` | `false` | Keeps Xtream movie and series entries (`/movie/` and `/series/` URLs) from M3U playlists. Off by default: VOD entries are most of an `m3u_plus` list and cost RAM |
 
 ### Addon identity
 
@@ -171,7 +174,7 @@ All variables are optional. The defaults below are the values in [`packages/back
 | `M3U_CACHE_TTL_MS` | `86400000` | M3U data lifetime (24 h) |
 | `DATA_MEMORY_TTL_MS` | `300000` | Time channel and EPG data stays in RAM after the last request (5 min) |
 | `MAX_CACHE_ENTRIES` | `300` | Maximum addon instances in the in-memory LRU |
-| `LOGO_CACHE_ENABLED` | `true` | Sends `Cache-Control` headers on proxied logos |
+| `LOGO_CACHE_ENABLED` | `true` | Serves proxied logos with a 6 h `Cache-Control` header. When `false`, redirects to the original URL. No effect when logos are reformatted, which IPTV-org and M3U always do |
 
 ### Refresh and program guide
 
@@ -199,7 +202,7 @@ The configure page validates Xtream playlists and EPG through this proxy when th
 
 | Variable | Default | Description |
 | --- | --- | --- |
-| `FETCH_TIMEOUT_MS` | `30000` | Playlist and stream fetches (30 s) |
+| `FETCH_TIMEOUT_MS` | `30000` | Xtream API calls and M3U playlist downloads (30 s) |
 | `EPG_FETCH_TIMEOUT_MS` | `60000` | XMLTV fetches (60 s) |
 | `LOGO_TIMEOUT_MS` | `10000` | Logo proxy requests (10 s) |
 
@@ -248,7 +251,10 @@ The panel rejected the credentials. Open the configure page from Stremio and ent
 The background timer stopped. Restart the container.
 
 **Memory is high on a small server.**
-Lower `DATA_MEMORY_TTL_MS`, `EPG_MAX_BYTES`, and `MAX_CACHE_ENTRIES`, and keep `EPG_NATIVE_ENABLED` off.
+Lower `DATA_MEMORY_TTL_MS`, `EPG_MAX_BYTES`, and `MAX_CACHE_ENTRIES`, and keep `EPG_NATIVE_ENABLED` and `M3U_INCLUDE_VOD` off.
+
+**Movies and series from my `m3u_plus` link are missing.**
+NexoTV skips them by default because they are not live channels. Set `M3U_INCLUDE_VOD=true` to keep them as catalog entries.
 
 **All installed addons stopped working after a restart.**
 `CONFIG_SECRET` changed. Set it back to the old value, or ask each user to configure the addon again.

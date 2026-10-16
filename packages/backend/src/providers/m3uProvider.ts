@@ -61,7 +61,10 @@ export async function fetchData(addonInstance: any) {
 
     const text = await resp.text();
 
-    const { channels: parsed, epgUrl: detectedEpgUrl } = parseM3U(text);
+    const { channels: parsed, epgUrl: detectedEpgUrl, vodSkipped } = parseM3U(text, { includeVod: env.M3U_INCLUDE_VOD });
+    if (vodSkipped > 0) {
+        addonInstance.log?.debug(`M3U skipped ${vodSkipped} VOD entries (movie/series); set M3U_INCLUDE_VOD=true to keep them`);
+    }
 
     const seenIds = new Set<string>();
     addonInstance.channels = parsed.map((ch: any) => {

@@ -60,17 +60,46 @@ function extractChannelName(extinfLine: string) {
     return extinfLine.slice(commaIdx + 1).trim() || 'Unknown';
 }
 
+const VOD_PATH_KINDS = new Set(['movie', 'series']);
+
+/**
+ * True when the URL uses the Xtream VOD layout: `/movie/<user>/<pass>/<id>.<ext>`
+ * or `/series/<user>/<pass>/<id>.<ext>`. Only the path is checked, so a live
+ * channel named "Movies HD" stays a channel.
+ */
+export function isVodUrl(url: string): boolean {
+    let path = url;
+    const queryIdx = path.search(/[?#]/);
+    if (queryIdx !== -1) path = path.slice(0, queryIdx);
+    const schemeIdx = path.indexOf('://');
+    if (schemeIdx !== -1) {
+        const slashIdx = path.indexOf('/', schemeIdx + 3);
+        if (slashIdx === -1) return false;
+        path = path.slice(slashIdx);
+    }
+    const segments = path.split('/').filter(Boolean);
+    if (segments.length < 4) return false;
+    return VOD_PATH_KINDS.has(segments[segments.length - 4].toLowerCase());
+}
+
+export interface ParseM3UOptions {
+    /** Keep Xtream movie and series entries. Default: false. */
+    includeVod?: boolean;
+}
+
 /**
  * Parse raw M3U / M3U_PLUS text into a structured result.
+ * Xtream VOD entries are dropped unless `includeVod` is true; `vodSkipped` counts them.
  */
-export function parseM3U(text: string) {
-    if (!text || !text.trim()) return { channels: [], epgUrl: null };
+export function parseM3U(text: string, { includeVod = false }: ParseM3UOptions = {}) {
+    if (!text || !text.trim()) return { channels: [], epgUrl: null, vodSkipped: 0 };
 
     const lines = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
 
     let epgUrl: string | null = null;
     const channels: any[] = [];
     let pendingChannel: any = null;
+    let vodSkipped = 0;
 
     for (const rawLine of lines) {
         const line = rawLine.trim();
@@ -112,11 +141,15 @@ export function parseM3U(text: string) {
         if (line.startsWith('#')) continue;
 
         if (pendingChannel) {
-            pendingChannel.url = line;
-            channels.push(pendingChannel);
+            if (!includeVod && isVodUrl(line)) {
+                vodSkipped++;
+            } else {
+                pendingChannel.url = line;
+                channels.push(pendingChannel);
+            }
             pendingChannel = null;
         }
     }
 
-    return { channels, epgUrl };
+    return { channels, epgUrl, vodSkipped };
 }

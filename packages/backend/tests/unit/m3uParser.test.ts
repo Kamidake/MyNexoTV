@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseM3U } from '../../src/parsers/m3uParser';
+import { parseM3U, isVodUrl } from '../../src/parsers/m3uParser';
 import { SAMPLE_M3U, MALFORMED_M3U, generateLargeM3U } from '../helpers/fixtures';
 
 describe('parseM3U', () => {
@@ -91,5 +91,64 @@ describe('parseM3U', () => {
     const large = generateLargeM3U(10000);
     const { channels } = parseM3U(large);
     expect(channels).toHaveLength(10000);
+  });
+});
+
+describe('parseM3U VOD filter', () => {
+  const XTREAM_M3U_PLUS = [
+    '#EXTM3U',
+    '#EXTINF:-1 tvg-id="hbo" group-title="Movies",Movies HD',
+    'http://panel.example.com:8080/live/user/pass/100.ts',
+    '#EXTINF:-1 group-title="Cinema",Movie Channel 24/7',
+    'http://panel.example.com:8080/user/pass/101',
+    '#EXTINF:-1 group-title="VOD | Action",The Movie (2020)',
+    'http://panel.example.com:8080/movie/user/pass/200.mkv',
+    '#EXTINF:-1 group-title="Series | Drama",Show S01 E01',
+    'http://panel.example.com:8080/series/user/pass/300.mp4',
+  ].join('\n');
+
+  it('drops movie and series entries by default and counts them', () => {
+    const { channels, vodSkipped } = parseM3U(XTREAM_M3U_PLUS);
+    expect(channels.map((c: any) => c.name)).toEqual(['Movies HD', 'Movie Channel 24/7']);
+    expect(vodSkipped).toBe(2);
+  });
+
+  it('keeps every entry when includeVod is true', () => {
+    const { channels, vodSkipped } = parseM3U(XTREAM_M3U_PLUS, { includeVod: true });
+    expect(channels.map((c: any) => c.url)).toEqual([
+      'http://panel.example.com:8080/live/user/pass/100.ts',
+      'http://panel.example.com:8080/user/pass/101',
+      'http://panel.example.com:8080/movie/user/pass/200.mkv',
+      'http://panel.example.com:8080/series/user/pass/300.mp4',
+    ]);
+    expect(vodSkipped).toBe(0);
+  });
+
+  it('returns vodSkipped 0 for an empty playlist', () => {
+    expect(parseM3U('').vodSkipped).toBe(0);
+  });
+});
+
+describe('isVodUrl', () => {
+  it.each([
+    'http://panel.example.com:8080/movie/user/pass/200.mkv',
+    'http://panel.example.com/series/user/pass/300.mp4',
+    'https://proxy.example.com/xtream/movie/user/pass/200.mp4?token=abc',
+    'http://panel.example.com/MOVIE/user/pass/200.mkv',
+  ])('detects the Xtream VOD path in %s', (url) => {
+    expect(isVodUrl(url)).toBe(true);
+  });
+
+  it.each([
+    'http://panel.example.com:8080/live/user/pass/100.ts',
+    'http://panel.example.com:8080/user/pass/101',
+    'http://panel.example.com/live/movies/user/pass/1.ts',
+    'http://panel.example.com/movie/stream.m3u8',
+    'http://panel.example.com/channels/movie/hd.m3u8',
+    'http://panel.example.com/live.m3u8?path=/movie/user/pass/1.mkv',
+    'http://panel.example.com',
+    'rtmp://movie',
+  ])('keeps the live URL %s', (url) => {
+    expect(isVodUrl(url)).toBe(false);
   });
 });
