@@ -1,4 +1,4 @@
-import env from '../config/env';
+import { SourceReport, describeFetchError, formatCount } from '../addon/sourceReport';
 
 const IPTV_ORG_BASE = 'https://iptv-org.github.io/api';
 
@@ -23,22 +23,34 @@ export async function fetchData(addonInstance: any) {
     const filterCountries = config.iptvOrgCountry ? config.iptvOrgCountry.split(',').map((c: string) => c.trim().toUpperCase()).filter((c: string) => c) : [];
     const filterCategories = config.iptvOrgCategory ? config.iptvOrgCategory.split(',').map((c: string) => c.trim().toLowerCase()).filter((c: string) => c) : [];
 
+    const report: SourceReport = addonInstance.report ?? new SourceReport();
+
     addonInstance.log.debug('[iptvOrg] Fetching channels + streams in parallel…');
 
-    const channelsResult = await fetchJsonConditional(
-        `${IPTV_ORG_BASE}/channels.json`,
-        addonInstance.iptvOrgEtag
-    );
-
-    if (channelsResult.data === null) {
-        addonInstance.log.debug('[iptvOrg] 304 Not Modified — skipping update');
-        return;
+    const started = Date.now();
+    let channelsResult: { data: any | null; etag: string | null };
+    let streamsRaw: any[];
+    let logosRaw: any[];
+    try {
+        channelsResult = await fetchJsonConditional(
+            `${IPTV_ORG_BASE}/channels.json`,
+            addonInstance.iptvOrgEtag
+        );
+        if (channelsResult.data === null) {
+            addonInstance.log.debug('[iptvOrg] 304 Not Modified — skipping update');
+            report.ok('catalog', 'iptv-org catalog', started, 'not changed since the last download');
+            return;
+        }
+        [streamsRaw, logosRaw] = await Promise.all([
+            fetchJson(`${IPTV_ORG_BASE}/streams.json`),
+            fetchJson(`${IPTV_ORG_BASE}/logos.json`),
+        ]);
+    } catch (e) {
+        const detail = e instanceof Error && e.message.startsWith('iptv-org fetch failed')
+            ? 'iptv-org.github.io did not return the channel list. Try again later.'
+            : describeFetchError(e, IPTV_ORG_BASE, 30_000);
+        throw report.failWith('catalog', 'iptv-org catalog', started, detail);
     }
-
-    const [streamsRaw, logosRaw] = await Promise.all([
-        fetchJson(`${IPTV_ORG_BASE}/streams.json`),
-        fetchJson(`${IPTV_ORG_BASE}/logos.json`),
-    ]);
     const channelsRaw = channelsResult.data;
     addonInstance.iptvOrgEtag = channelsResult.etag;
 
@@ -93,6 +105,15 @@ export async function fetchData(addonInstance: any) {
         });
     }
 
+    report.ok('catalog', 'iptv-org catalog', started,
+        `${formatCount(channelsRaw.length)} channels, ${formatCount(streamsRaw.length)} streams`);
+
     addonInstance.channels = channels;
+    if (channels.length === 0) {
+        report.fail('channels', 'Live channels', started, 'No channel with a stream matches the selected countries and categories.');
+    } else {
+        report.ok('channels', 'Live channels', started);
+    }
+    report.skip('guide', 'Program guide', 'iptv-org has no guide');
     addonInstance.log.debug(`[iptvOrg] Done — ${channels.length} channel entries (with streams)`);
 }

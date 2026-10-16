@@ -1,7 +1,7 @@
-import { Readable } from 'stream';
-import { parseEPGStream } from '../parsers/epgParser';
 import { validatePublicUrl } from '../utils/validateUrl';
 import env from '../config/env';
+import { SourceReport, describeFetchError, describeHttpStatus, hostOf } from '../addon/sourceReport';
+import { loadGuide } from './guide';
 
 async function withTimeout(url: string, options: any, ms: number) {
     const controller = new AbortController();
@@ -15,39 +15,69 @@ async function withTimeout(url: string, options: any, ms: number) {
 
 export async function fetchData(addonInstance: any) {
     const { config } = addonInstance;
+    const report: SourceReport = addonInstance.report ?? new SourceReport();
     const {
         xtreamUrl,
         xtreamUsername,
         xtreamPassword
     } = config;
 
+    const started = Date.now();
     if (!xtreamUrl || !xtreamUsername || !xtreamPassword) {
-        throw new Error('Xtream credentials incomplete');
+        const field = !xtreamUrl ? 'xtreamUrl' : !xtreamUsername ? 'xtreamUsername' : 'xtreamPassword';
+        throw report.failWith('server', 'Panel reachable', started, 'Enter the server URL, username and password.', field);
     }
+    const host = hostOf(xtreamUrl);
 
-    await validatePublicUrl(xtreamUrl);
     const base = `${xtreamUrl}/player_api.php?username=${encodeURIComponent(xtreamUsername)}&password=${encodeURIComponent(xtreamPassword)}`;
 
     const liveHeaders: Record<string, string> = {};
     if (addonInstance.xtreamEtag) liveHeaders['If-None-Match'] = addonInstance.xtreamEtag;
 
-    const [liveResp, liveCatsResp] = await Promise.all([
-        withTimeout(`${base}&action=get_live_streams`, { headers: liveHeaders }, env.FETCH_TIMEOUT_MS),
-        withTimeout(`${base}&action=get_live_categories`, {}, env.FETCH_TIMEOUT_MS).catch(() => null)
-    ]);
+    let liveResp: Response;
+    let liveCatsResp: Response | null;
+    try {
+        await validatePublicUrl(xtreamUrl);
+        [liveResp, liveCatsResp] = await Promise.all([
+            withTimeout(`${base}&action=get_live_streams`, { headers: liveHeaders }, env.FETCH_TIMEOUT_MS),
+            withTimeout(`${base}&action=get_live_categories`, {}, env.FETCH_TIMEOUT_MS).catch(() => null)
+        ]);
+    } catch (e) {
+        throw report.failWith('server', 'Panel reachable', started,
+            describeFetchError(e, xtreamUrl, env.FETCH_TIMEOUT_MS), 'xtreamUrl');
+    }
+    report.ok('server', 'Panel reachable', started, host);
 
+    const loginStarted = Date.now();
     if (liveResp.status === 304) {
         addonInstance.log?.debug('Xtream 304 Not Modified — skipping update');
+        report.ok('login', 'Login accepted', loginStarted, 'Channel list not changed since the last download');
         return;
     }
-    if (!liveResp.ok) throw new Error('Xtream live streams fetch failed');
+    if (!liveResp.ok) {
+        const field = liveResp.status === 401 || liveResp.status === 403 ? 'xtreamPassword' : 'xtreamUrl';
+        throw report.failWith('login', 'Login accepted', loginStarted,
+            describeHttpStatus(liveResp.status, host, 'Xtream API'), field);
+    }
+
+    let live: unknown;
+    try {
+        live = await liveResp.json();
+    } catch {
+        throw report.failWith('login', 'Login accepted', loginStarted,
+            `${host} did not answer as an Xtream Codes panel. Check the server URL.`, 'xtreamUrl');
+    }
+    // Panels answer a bad login with HTTP 200 and an object such as {"user_info":{"auth":0}}
+    if (!Array.isArray(live)) {
+        throw report.failWith('login', 'Login accepted', loginStarted,
+            `${host} did not accept the username and password.`, 'xtreamPassword');
+    }
+    report.ok('login', 'Login accepted', loginStarted);
 
     addonInstance.xtreamEtag = liveResp.headers.get('etag') ?? null;
 
     addonInstance.channels = [];
     addonInstance.epgData = {};
-
-    const live = await liveResp.json();
 
     let liveCatMap: Record<string, string> = {};
     try {
@@ -62,7 +92,7 @@ export async function fetchData(addonInstance: any) {
         }
     } catch { /* ignore */ }
 
-    addonInstance.channels = (Array.isArray(live) ? live : []).map((s: any) => {
+    addonInstance.channels = live.map((s: any) => {
         const cat = liveCatMap[s.category_id] || s.category_name || s.category_id || 'Live';
         return {
             id: `xc${addonInstance.idPrefix}_${s.stream_id}`,
@@ -80,40 +110,18 @@ export async function fetchData(addonInstance: any) {
         };
     });
 
-    if (config.enableEpg) {
-        const customEpgUrl = config.epgUrl && typeof config.epgUrl === 'string' && config.epgUrl.trim() ? config.epgUrl.trim() : null;
-        const epgSource = customEpgUrl
-            ? customEpgUrl
-            : `${xtreamUrl}/xmltv.php?username=${encodeURIComponent(xtreamUsername)}&password=${encodeURIComponent(xtreamPassword)}`;
-
-        const now = Date.now();
-        const epgStale = !addonInstance.lastEpgUpdate ||
-            (now - addonInstance.lastEpgUpdate > env.EPG_UPDATE_INTERVAL_MS);
-
-        if (epgStale) {
-            try {
-                if (customEpgUrl) await validatePublicUrl(epgSource);
-                // The signal also bounds the body download, which is streamed into the parser
-                const epgResp = await fetch(epgSource, { signal: AbortSignal.timeout(env.EPG_FETCH_TIMEOUT_MS) });
-                if (epgResp.ok) {
-                    const contentLength = parseInt(epgResp.headers.get('content-length') ?? '0', 10);
-                    if (contentLength > env.EPG_MAX_BYTES) {
-                        const sizeMb = (contentLength / 1024 / 1024).toFixed(1);
-                        addonInstance.log?.warn(`[EPG] Content-Length too large (${sizeMb} MB), skipping download`);
-                    } else {
-                        addonInstance.epgData = await parseEPGStream(epgResp.body ? Readable.fromWeb(epgResp.body as any) : [], addonInstance.log, {
-                            nativeDays: addonInstance.nativeEpg ? env.EPG_NATIVE_DAYS : undefined,
-                        });
-                        addonInstance.lastEpgUpdate = Date.now();
-                    }
-                }
-            } catch {
-                // Ignore EPG errors
-            }
-        } else {
-            addonInstance.log?.debug('EPG skip (interval not elapsed)', {
-                ms: now - (addonInstance.lastEpgUpdate ?? 0)
-            });
-        }
+    if (addonInstance.channels.length === 0) {
+        report.fail('channels', 'Live streams', loginStarted, 'The panel accepted the login but lists no live channels.');
+    } else {
+        report.ok('channels', 'Live streams', loginStarted);
     }
+
+    if (!config.enableEpg) {
+        report.skip('guide', 'Program guide', 'Turned off');
+        return;
+    }
+    const customEpgUrl = config.epgUrl && typeof config.epgUrl === 'string' && config.epgUrl.trim() ? config.epgUrl.trim() : null;
+    await loadGuide(addonInstance, report, customEpgUrl
+        ? { url: customEpgUrl, custom: true }
+        : { url: `${xtreamUrl}/xmltv.php?username=${encodeURIComponent(xtreamUsername)}&password=${encodeURIComponent(xtreamPassword)}`, custom: false, trusted: true });
 }
