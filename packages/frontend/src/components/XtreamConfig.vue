@@ -34,6 +34,7 @@
           <label for="catalogName">Catalog name</label>
           <input type="text" id="catalogName" v-model="form.catalogName" :placeholder="addonName">
         </div>
+        <PosterShapeField id="xtreamPosterShape" v-model="form.posterShape" />
         <div class="field">
           <label for="epgOffsetHours">Guide time offset (hours)</label>
           <input type="number" step="0.25" min="-48" max="48" id="epgOffsetHours" class="mono" v-model.number="form.epgOffsetHours"
@@ -68,11 +69,12 @@ import { reactive, ref, computed, onMounted } from 'vue'
 import StepBlock from './StepBlock.vue'
 import CheckBox from './CheckBox.vue'
 import AdvancedPanel from './AdvancedPanel.vue'
+import PosterShapeField from './PosterShapeField.vue'
 import { useDecodedToken } from '../composables/useDecodedToken'
 import { useAddonInfo } from '../composables/useAddonInfo'
 import { useSourceCheck } from '../composables/useSourceCheck'
 import { useFieldErrors, isHttpUrl } from '../composables/useFieldErrors'
-import type { XtreamConfig } from '../types/config'
+import type { XtreamConfig, AddonConfig, PosterShape } from '../types/config'
 
 type FieldId = 'xtreamUrl' | 'xtreamUsername' | 'xtreamPassword' | 'epgOffsetHours' | 'customEpgUrl'
 const FIELD_ORDER: readonly FieldId[] = ['xtreamUrl', 'xtreamUsername', 'xtreamPassword', 'epgOffsetHours', 'customEpgUrl']
@@ -97,6 +99,7 @@ const defaults = () => ({
   epgOffsetHours: 0,
   reformatLogos: false,
   catalogName: '',
+  posterShape: 'poster' as PosterShape,
 })
 const form = reactive(defaults())
 
@@ -117,7 +120,8 @@ onMounted(() => {
   form.epgOffsetHours = d.epgOffsetHours ?? 0
   form.reformatLogos = !!d.reformatLogos
   form.catalogName = decodedConfig.catalogName || ''
-  advancedOpen.value = !!(d.epgUrl || d.epgOffsetHours || d.reformatLogos || decodedConfig.catalogName)
+  form.posterShape = decodedConfig.posterShape === 'landscape' ? 'landscape' : 'poster'
+  advancedOpen.value = !!(d.epgUrl || d.epgOffsetHours || d.reformatLogos || decodedConfig.catalogName || form.posterShape === 'landscape')
 })
 
 function normalizeUrl(raw: string) {
@@ -163,7 +167,7 @@ async function handleSubmit() {
   const customEpg = form.enableEpg ? form.customEpgUrl.trim() : ''
   const offset = form.epgOffsetHours || 0
 
-  const config: XtreamConfig & { catalogName?: string } = {
+  const config: AddonConfig = {
     provider: 'xtream',
     xtreamUrl: normalizeUrl(form.xtreamUrl),
     xtreamUsername: form.xtreamUsername.trim(),
@@ -174,6 +178,7 @@ async function handleSubmit() {
     ...(form.enableEpg && offset !== 0 ? { epgOffsetHours: offset } : {}),
     instanceId: uuid(),
     ...(form.catalogName.trim() ? { catalogName: form.catalogName.trim() } : {}),
+    ...(form.posterShape === 'landscape' ? { posterShape: 'landscape' as const } : {}),
   }
 
   const result = await check.run(config)

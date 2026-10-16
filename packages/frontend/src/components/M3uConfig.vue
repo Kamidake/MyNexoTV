@@ -26,6 +26,7 @@
           <label for="m3uCatalogName">Catalog name</label>
           <input type="text" id="m3uCatalogName" v-model="form.catalogName" :placeholder="addonName">
         </div>
+        <PosterShapeField id="m3uPosterShape" v-model="form.posterShape" />
         <div class="field">
           <label for="m3uEpgOffsetHours">Guide time offset (hours)</label>
           <input type="number" step="0.25" min="-48" max="48" id="m3uEpgOffsetHours" class="mono" v-model.number="form.epgOffsetHours"
@@ -72,12 +73,13 @@ import { reactive, ref, computed, onMounted } from 'vue'
 import StepBlock from './StepBlock.vue'
 import CheckBox from './CheckBox.vue'
 import AdvancedPanel from './AdvancedPanel.vue'
+import PosterShapeField from './PosterShapeField.vue'
 import { usePublicPlaylists } from '../composables/usePublicPlaylists'
 import { useDecodedToken } from '../composables/useDecodedToken'
 import { useAddonInfo } from '../composables/useAddonInfo'
 import { useSourceCheck } from '../composables/useSourceCheck'
 import { useFieldErrors, isHttpUrl } from '../composables/useFieldErrors'
-import type { M3uConfig } from '../types/config'
+import type { M3uConfig, AddonConfig, PosterShape } from '../types/config'
 
 type FieldId = 'm3uUrl' | 'm3uEpgOffsetHours' | 'm3uCustomEpgUrl'
 const FIELD_ORDER: readonly FieldId[] = ['m3uUrl', 'm3uEpgOffsetHours', 'm3uCustomEpgUrl']
@@ -105,6 +107,7 @@ const defaults = () => ({
   epgOffsetHours: 0,
   reformatLogos: false,
   catalogName: '',
+  posterShape: 'poster' as PosterShape,
   userAgentPreset: '',
   globalUserAgent: '',
 })
@@ -135,13 +138,14 @@ onMounted(() => {
   form.epgOffsetHours = d.epgOffsetHours ?? 0
   form.reformatLogos = !!d.reformatLogos
   form.catalogName = decodedConfig.catalogName || ''
+  form.posterShape = decodedConfig.posterShape === 'landscape' ? 'landscape' : 'poster'
   const savedUa = d.globalUserAgent || ''
   if (savedUa) {
     const match = USER_AGENT_PRESETS.find(p => p.value === savedUa)
     form.userAgentPreset = match ? match.value : 'custom'
     form.globalUserAgent = savedUa
   }
-  advancedOpen.value = !!(d.epgUrl || d.epgOffsetHours || d.reformatLogos || savedUa || decodedConfig.catalogName)
+  advancedOpen.value = !!(d.epgUrl || d.epgOffsetHours || d.reformatLogos || savedUa || decodedConfig.catalogName || form.posterShape === 'landscape')
 })
 
 function validate() {
@@ -175,7 +179,7 @@ async function handleSubmit() {
   const customEpgUrl = enableEpg ? form.customEpgUrl.trim() : ''
   const epgOffsetHours = form.epgOffsetHours || 0
 
-  const config: M3uConfig & { catalogName?: string } = {
+  const config: AddonConfig = {
     provider: 'm3u',
     m3uUrl: form.m3uUrl.trim(),
     enableEpg,
@@ -183,6 +187,7 @@ async function handleSubmit() {
     ...(enableEpg && epgOffsetHours !== 0 ? { epgOffsetHours } : {}),
     ...(customEpgUrl ? { epgUrl: customEpgUrl } : {}),
     ...(form.catalogName.trim() ? { catalogName: form.catalogName.trim() } : {}),
+    ...(form.posterShape === 'landscape' ? { posterShape: 'landscape' as const } : {}),
     ...(form.globalUserAgent.trim() ? { globalUserAgent: form.globalUserAgent.trim() } : {}),
   }
 

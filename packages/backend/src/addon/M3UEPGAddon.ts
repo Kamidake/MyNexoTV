@@ -39,6 +39,8 @@ export interface AddonConfig {
     iptvOrgCategory?: string;
     instanceId?: string;
     catalogName?: string;
+    /** Channel artwork: portrait (default) or 16:9 landscape. */
+    posterShape?: 'poster' | 'landscape';
     globalUserAgent?: string;
 }
 
@@ -85,6 +87,8 @@ export function createCacheKey(config: AddonConfig) {
             reformatLogos: !!config.reformatLogos
         };
     }
+    // Only the non-default shape joins the key, so existing channel ids stay the same
+    if (config.posterShape === 'landscape') minimal.posterShape = 'landscape';
     return crypto.createHash('md5').update(stableStringify(minimal)).digest('hex');
 }
 
@@ -382,20 +386,25 @@ export class M3UEPGAddon {
         }
     }
 
+    get posterShape(): 'poster' | 'landscape' {
+        return this.config.posterShape === 'landscape' ? 'landscape' : 'poster';
+    }
+
     deriveFallbackLogoUrl(item: any) {
+        const [w, h] = this.posterShape === 'landscape' ? [480, 270] : [250, 375];
         let finalUrl: string;
         const logoAttr = item.attributes?.['tvg-logo'] || item.logo;
         if (logoAttr && logoAttr.trim()) {
             finalUrl = logoAttr;
         } else {
-            finalUrl = `https://placehold.co/250x375/2b2b2b/FFFFFF.png?text=${encodeURIComponent(item.name || 'TV')}`;
+            finalUrl = `https://placehold.co/${w}x${h}/2b2b2b/FFFFFF.png?text=${encodeURIComponent(item.name || 'TV')}`;
         }
 
         if (this.config.reformatLogos && finalUrl.startsWith('http') && !finalUrl.includes('wsrv.nl') && !finalUrl.includes('placehold.co')) {
             if (finalUrl.includes('imgur.com')) {
                 finalUrl = `https://proxy.duckduckgo.com/iu/?u=${encodeURIComponent(finalUrl)}`;
             }
-            return `https://wsrv.nl/?url=${encodeURIComponent(finalUrl)}&w=250&h=375&fit=contain&we&bg=2b2b2b`;
+            return `https://wsrv.nl/?url=${encodeURIComponent(finalUrl)}&w=${w}&h=${h}&fit=contain&we&bg=2b2b2b`;
         }
         return finalUrl;
     }
@@ -409,7 +418,7 @@ export class M3UEPGAddon {
             description: '📡 Live Channel',
             poster: logoUrl,
             background: logoUrl,
-            posterShape: 'poster',
+            posterShape: this.posterShape,
             genres: item.category
                 ? [item.category]
                 : (item.attributes?.['group-title'] ? [item.attributes['group-title']] : ['Live TV']),
@@ -514,7 +523,7 @@ export class M3UEPGAddon {
             name: item.name,
             poster: logoUrl,
             background: logoUrl,
-            posterShape: 'poster',
+            posterShape: this.posterShape,
             description,
             genres: item.category
                 ? [item.category]
