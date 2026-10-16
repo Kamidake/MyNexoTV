@@ -1,4 +1,5 @@
-import { parseEPG, decodeEPGBody } from '../parsers/epgParser';
+import { Readable } from 'stream';
+import { parseEPGStream } from '../parsers/epgParser';
 import { validatePublicUrl } from '../utils/validateUrl';
 import env from '../config/env';
 
@@ -92,15 +93,15 @@ export async function fetchData(addonInstance: any) {
         if (epgStale) {
             try {
                 if (customEpgUrl) await validatePublicUrl(epgSource);
-                const epgResp = await withTimeout(epgSource, {}, env.EPG_FETCH_TIMEOUT_MS);
+                // The signal also bounds the body download, which is streamed into the parser
+                const epgResp = await fetch(epgSource, { signal: AbortSignal.timeout(env.EPG_FETCH_TIMEOUT_MS) });
                 if (epgResp.ok) {
                     const contentLength = parseInt(epgResp.headers.get('content-length') ?? '0', 10);
                     if (contentLength > env.EPG_MAX_BYTES) {
                         const sizeMb = (contentLength / 1024 / 1024).toFixed(1);
                         addonInstance.log?.warn(`[EPG] Content-Length too large (${sizeMb} MB), skipping download`);
                     } else {
-                        const epgContent = decodeEPGBody(Buffer.from(await epgResp.arrayBuffer()));
-                        addonInstance.epgData = await parseEPG(epgContent, addonInstance.log, {
+                        addonInstance.epgData = await parseEPGStream(epgResp.body ? Readable.fromWeb(epgResp.body as any) : [], addonInstance.log, {
                             nativeDays: addonInstance.nativeEpg ? env.EPG_NATIVE_DAYS : undefined,
                         });
                         addonInstance.lastEpgUpdate = Date.now();

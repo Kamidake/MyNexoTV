@@ -1,5 +1,7 @@
-import xml2js from 'xml2js';
+import sax from 'sax';
 import zlib from 'zlib';
+import { Readable, pipeline } from 'stream';
+import { StringDecoder } from 'string_decoder';
 import { makeLogger } from '../utils/logger';
 import env from '../config/env';
 
@@ -8,86 +10,150 @@ export interface ParseEPGOptions {
     nativeDays?: number;
 }
 
+type Programme = { start: number; stop: number; title: string; desc: string };
+type EPGSource = Readable | AsyncIterable<Buffer | string> | Iterable<Buffer | string>;
+
+const MAX_UPCOMING = 5;
+const YIELD_EVERY_BYTES = 256 * 1024;
+
 /**
- * Decode an XMLTV payload to text. Some providers (e.g. m3u4u) serve a .gz file
- * without Content-Encoding, so fetch hands it back still compressed.
- * Output is capped at EPG_MAX_BYTES so a small gzip cannot inflate into a huge string.
+ * Stream XMLTV into a channel-keyed object without holding the document in memory.
+ * Programmes are filtered as they arrive, so memory grows with what is kept, not with
+ * the file size. Gzip is detected from the first bytes, since providers like m3u4u
+ * serve .gz files without Content-Encoding. Input over EPG_MAX_BYTES (after
+ * decompression) or malformed XML returns {}.
+ *
+ * By default keeps programmes airing in the last hour plus the next 5 per channel.
  */
-export function decodeEPGBody(buf: Buffer): string {
-    const isGzip = buf.length >= 2 && buf[0] === 0x1f && buf[1] === 0x8b;
-    if (!isGzip) return buf.toString('utf8');
-    return zlib.gunzipSync(buf, { maxOutputLength: env.EPG_MAX_BYTES }).toString('utf8');
+export async function parseEPGStream(source: EPGSource, log?: ReturnType<typeof makeLogger>, options: ParseEPGOptions = {}) {
+    const startedAt = Date.now();
+    const nowTime = Date.now();
+    const native = !!options.nativeDays;
+    const cutoff = native ? nowTime - 24 * 3600 * 1000 : nowTime - 3600 * 1000;
+    const horizon = native ? nowTime + options.nativeDays! * 24 * 3600 * 1000 : Infinity;
+
+    const epgData: Record<string, Programme[]> = {};
+    // Non-native mode: per channel, the earliest MAX_UPCOMING future programmes, kept sorted.
+    const upcoming: Record<string, Programme[]> = {};
+
+    const keep = (ch: string, p: Programme) => {
+        if (p.stop < cutoff || p.start > horizon) return;
+        if (native || p.start <= nowTime) {
+            (epgData[ch] ||= []).push(p);
+            return;
+        }
+        const list = (upcoming[ch] ||= []);
+        if (list.length === MAX_UPCOMING && p.start >= list[MAX_UPCOMING - 1].start) return;
+        let i = list.length;
+        while (i > 0 && list[i - 1].start > p.start) i--;
+        list.splice(i, 0, p);
+        if (list.length > MAX_UPCOMING) list.pop();
+    };
+
+    const parser = sax.parser(true, { trim: false });
+    let cur: { channel: string; start: string; stop: string; title: string | null; desc: string | null } | null = null;
+    let field: 'title' | 'desc' | null = null;
+    let text = '';
+
+    parser.onopentag = (node: any) => {
+        if (node.name === 'programme') {
+            const a = node.attributes;
+            cur = { channel: a.channel, start: a.start, stop: a.stop, title: null, desc: null };
+        } else if (cur && (node.name === 'title' || node.name === 'desc') && cur[node.name] === null) {
+            field = node.name;
+            text = '';
+        }
+    };
+    parser.ontext = parser.oncdata = (t: string) => { if (field) text += t; };
+    parser.onclosetag = (name: string) => {
+        if (!cur) return;
+        if (field && name === field) {
+            cur[field] = text.trim();
+            field = null;
+        } else if (name === 'programme') {
+            if (cur.channel) {
+                keep(cur.channel, {
+                    start: parseEPGTime(cur.start).getTime(),
+                    stop: parseEPGTime(cur.stop).getTime(),
+                    title: cur.title || 'Unknown',
+                    desc: cur.desc || '',
+                });
+            }
+            cur = null;
+        }
+    };
+
+    try {
+        const decoder = new StringDecoder('utf8');
+        let bytes = 0;
+        let nextYield = YIELD_EVERY_BYTES;
+        for await (const chunk of decompressed(source)) {
+            bytes += chunk.length;
+            if (bytes > env.EPG_MAX_BYTES) throw new Error('EPG_TOO_LARGE');
+            parser.write(decoder.write(chunk));
+            if (bytes >= nextYield) {
+                // Let other requests run while a large guide is parsed
+                nextYield = bytes + YIELD_EVERY_BYTES;
+                await new Promise<void>(resolve => setImmediate(resolve));
+            }
+        }
+        parser.write(decoder.end());
+        parser.close();
+    } catch (e: any) {
+        if (log) {
+            if (e.message === 'EPG_TOO_LARGE') {
+                log.warn(`[EPG] Content too large (over ${(env.EPG_MAX_BYTES / 1024 / 1024).toFixed(0)} MB), skipping`);
+            } else {
+                log.warn('EPG parse failed', e.message);
+            }
+        }
+        return {};
+    }
+
+    for (const ch in upcoming) (epgData[ch] ||= []).push(...upcoming[ch]);
+    for (const ch in epgData) epgData[ch].sort((a, b) => a.start - b.start);
+
+    if (log) {
+        log.debug('EPG parsed', {
+            channels: Object.keys(epgData).length,
+            programmes: Object.values(epgData).reduce((a, b) => a + b.length, 0),
+            ms: Date.now() - startedAt
+        });
+    }
+    return epgData;
+}
+
+/** Yield the source as Buffers, gunzipped when it starts with the gzip magic bytes. */
+async function* decompressed(source: EPGSource): AsyncGenerator<Buffer> {
+    const it = (Readable.from(source as any) as AsyncIterable<Buffer | string>)[Symbol.asyncIterator]();
+    const head = await it.next();
+    if (head.done) return;
+    const first = Buffer.from(head.value);
+    async function* all() {
+        yield first;
+        for (let r = await it.next(); !r.done; r = await it.next()) yield Buffer.from(r.value);
+    }
+    if (first.length < 2 || first[0] !== 0x1f || first[1] !== 0x8b) {
+        yield* all();
+        return;
+    }
+    const gunzip = zlib.createGunzip();
+    pipeline(Readable.from(all()), gunzip, () => {});
+    yield* gunzip as AsyncIterable<Buffer>;
 }
 
 /**
- * Parse XMLTV EPG content into a channel-keyed object.
- * By default keeps the current programme and the next 5 per channel.
+ * Parse XMLTV held in a string. Thin wrapper over parseEPGStream.
  */
 export async function parseEPG(content: string, log?: ReturnType<typeof makeLogger>, options: ParseEPGOptions = {}) {
     if (Buffer.byteLength(content, 'utf8') > env.EPG_MAX_BYTES) {
-        const sizeMb = (Buffer.byteLength(content, 'utf8') / 1024 / 1024).toFixed(1);
-        if (log) log.warn(`[EPG] Content too large (${sizeMb} MB), skipping`);
+        if (log) log.warn(`[EPG] Content too large (over ${(env.EPG_MAX_BYTES / 1024 / 1024).toFixed(0)} MB), skipping`);
         return {};
     }
-
-    const start = Date.now();
-    try {
-        const parser = new xml2js.Parser();
-        const result = await parser.parseStringPromise(content);
-        const epgData: Record<string, any[]> = {};
-        if (result.tv && result.tv.programme) {
-            const nowTime = Date.now();
-            const native = !!options.nativeDays;
-            const cutoff = native ? nowTime - 24 * 3600 * 1000 : nowTime - 3600 * 1000;
-            const horizon = native ? nowTime + options.nativeDays! * 24 * 3600 * 1000 : Infinity;
-            let eventCount = 0;
-            for (const prog of result.tv.programme) {
-                // Yield every 5000 programmes to keep the event loop responsive
-                if (++eventCount % 5000 === 0) {
-                    await new Promise<void>(resolve => setImmediate(resolve));
-                }
-                const stopDate = parseEPGTime(prog.$.stop);
-                if (stopDate.getTime() < cutoff) continue;
-
-                const startDate = parseEPGTime(prog.$.start);
-                if (startDate.getTime() > horizon) continue;
-
-                const ch = prog.$.channel;
-                if (!epgData[ch]) epgData[ch] = [];
-                epgData[ch].push({
-                    start: startDate.getTime(),
-                    stop: stopDate.getTime(),
-                    title: prog.title ? prog.title[0]._ || prog.title[0] : 'Unknown',
-                    desc: prog.desc ? prog.desc[0]._ || prog.desc[0] : ''
-                });
-            }
-
-            for (const ch in epgData) {
-                epgData[ch].sort((a, b) => a.start - b.start);
-                if (native) continue;
-                let futureCount = 0;
-                epgData[ch] = epgData[ch].filter(p => {
-                    const startTime = p.start;
-                    if (startTime > nowTime) {
-                        if (futureCount >= 5) return false;
-                        futureCount++;
-                    }
-                    return true;
-                });
-            }
-        }
-        if (log) {
-            log.debug('EPG parsed', {
-                channels: Object.keys(epgData).length,
-                programmes: Object.values(epgData).reduce((a, b) => a + b.length, 0),
-                ms: Date.now() - start
-            });
-        }
-        return epgData;
-    } catch (e: any) {
-        if (log) log.warn('EPG parse failed', e.message);
-        return {};
-    }
+    const buf = Buffer.from(content);
+    const chunks: Buffer[] = [];
+    for (let i = 0; i < buf.length; i += 64 * 1024) chunks.push(buf.subarray(i, i + 64 * 1024));
+    return parseEPGStream(chunks, log, options);
 }
 
 /**

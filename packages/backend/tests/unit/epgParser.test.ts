@@ -2,7 +2,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import zlib from 'zlib';
 import env from '../../src/config/env';
 import {
-  decodeEPGBody,
+  parseEPGStream,
   parseEPG,
   parseEPGTime,
   getCurrentProgram,
@@ -188,31 +188,75 @@ describe('getUpcomingPrograms', () => {
   });
 });
 
-// ─── decodeEPGBody ───────────────────────────────────────────────────────────
+// ─── parseEPGStream ──────────────────────────────────────────────────────────
 
-describe('decodeEPGBody', () => {
-  it('returns plain XMLTV unchanged', () => {
-    expect(decodeEPGBody(Buffer.from(SAMPLE_XMLTV))).toBe(SAMPLE_XMLTV);
+describe('parseEPGStream', () => {
+  const chunks = (buf: Buffer, size: number) => {
+    const out: Buffer[] = [];
+    for (let i = 0; i < buf.length; i += size) out.push(buf.subarray(i, i + size));
+    return out;
+  };
+
+  it('parses XMLTV split into small chunks', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-03-19T10:00:00Z'));
+    const epgData = await parseEPGStream(chunks(Buffer.from(SAMPLE_XMLTV), 7));
+    expect(epgData['cnn.us'].map(p => p.title)).toEqual(['CNN Newsroom', 'The Situation Room']);
   });
 
   it('decompresses gzip served without Content-Encoding (m3u4u)', async () => {
-    const decoded = decodeEPGBody(zlib.gzipSync(SAMPLE_XMLTV));
-    expect(decoded).toBe(SAMPLE_XMLTV);
-    vi.useFakeTimers();
+    vi.useFakeTimers({ toFake: ['Date'] });
     vi.setSystemTime(new Date('2026-03-19T10:00:00Z'));
-    const epgData = await parseEPG(decoded);
-    expect(epgData['cnn.us'].length).toBeGreaterThan(0);
+    const epgData = await parseEPGStream(chunks(zlib.gzipSync(SAMPLE_XMLTV), 16));
+    expect(epgData['cnn.us'].length).toBe(2);
   });
 
-  it('refuses gzip that inflates past EPG_MAX_BYTES', () => {
+  it('keeps multi-byte characters split across chunks', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-03-19T10:00:00Z'));
+    const xml = SAMPLE_XMLTV.replace('CNN Newsroom', 'Jornal da Manhã ção');
+    const buf = Buffer.from(xml);
+    const at = buf.indexOf(Buffer.from('ã')) + 1; // split inside the 2-byte character
+    const epgData = await parseEPGStream([buf.subarray(0, at), buf.subarray(at)]);
+    expect(epgData['cnn.us'][0].title).toBe('Jornal da Manhã ção');
+  });
+
+  it('reads CDATA and uses the first title when several languages exist', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-03-19T10:00:00Z'));
+    const xml = `<tv><programme start="20260319120000 +0000" stop="20260319130000 +0000" channel="a">
+      <title lang="pt">Primeiro</title><title lang="en">First</title><desc><![CDATA[Desc & more]]></desc>
+    </programme></tv>`;
+    const epgData = await parseEPG(xml);
+    expect(epgData.a[0]).toMatchObject({ title: 'Primeiro', desc: 'Desc & more' });
+  });
+
+  it('keeps the earliest 5 upcoming programmes even when the file is unsorted', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-03-19T10:00:00Z'));
+    const rows = [8, 3, 6, 1, 7, 2, 5, 4].map(h => {
+      const s = String(10 + h).padStart(2, '0');
+      return `<programme start="20260319${s}0000 +0000" stop="20260319${s}5900 +0000" channel="a"><title>H${h}</title></programme>`;
+    }).join('');
+    const epgData = await parseEPG(`<tv>${rows}</tv>`);
+    expect(epgData.a.map(p => p.title)).toEqual(['H1', 'H2', 'H3', 'H4', 'H5']);
+  });
+
+  it('stops reading once the decompressed size passes EPG_MAX_BYTES', async () => {
     const original = env.EPG_MAX_BYTES;
     env.EPG_MAX_BYTES = 1024;
     try {
-      const bomb = zlib.gzipSync(Buffer.alloc(64 * 1024, 'a'));
-      expect(() => decodeEPGBody(bomb)).toThrow();
+      const bomb = zlib.gzipSync(Buffer.from('<tv>' + 'a'.repeat(64 * 1024) + '</tv>'));
+      expect(await parseEPGStream([bomb])).toEqual({});
+      expect(await parseEPGStream([Buffer.from('<tv>' + ' '.repeat(4096) + '</tv>')])).toEqual({});
     } finally {
       env.EPG_MAX_BYTES = original;
     }
+  });
+
+  it('returns {} for a corrupt gzip body', async () => {
+    const gz = zlib.gzipSync(SAMPLE_XMLTV);
+    expect(await parseEPGStream([gz.subarray(0, 20), Buffer.from('garbage')])).toEqual({});
   });
 });
 
