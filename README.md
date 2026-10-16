@@ -188,16 +188,6 @@ All variables are optional. The defaults below are the values in [`packages/back
 | `EPG_NATIVE_DAYS` | `2` | Days of schedule kept ahead for the native guide, from 1 to 7 |
 | `CATALOG_PAGE_SIZE` | `100` | Channels per catalog page |
 
-### Prefetch proxy
-
-The configure page validates Xtream playlists and EPG through this proxy when the browser cannot fetch them directly, for example because of CORS or mixed content.
-
-| Variable | Default | Description |
-| --- | --- | --- |
-| `PREFETCH_ENABLED` | `true` | Enables `POST /api/prefetch` |
-| `PREFETCH_MAX_BYTES` | `150000000` | Largest download per request (about 150 MB) |
-| `PREFETCH_TIMEOUT_MS` | `45000` | Timeout per request (45 s) |
-
 ### Timeouts
 
 | Variable | Default | Description |

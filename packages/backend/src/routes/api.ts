@@ -52,7 +52,4 @@ router.get('/api/public-playlists', (req, res) => {
     }
 });
 
-import prefetchRouter from './prefetch';
-router.use(prefetchRouter);
-
 export default router;

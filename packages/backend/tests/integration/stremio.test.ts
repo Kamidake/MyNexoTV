@@ -26,8 +26,6 @@ const mockEnv = vi.hoisted(() => ({
   ADDON_DESCRIPTION: 'Test description',
   ADDON_LOGO_URL: 'https://example.com/logo.png',
   ADDON_BACKGROUND_URL: 'https://example.com/bg.png',
-  PREFETCH_ENABLED: true,
-  PREFETCH_MAX_BYTES: 150000000,
   ALLOW_LOCAL_URLS: false,
   DEBUG: false,
   LOGO_CACHE_ENABLED: true,
