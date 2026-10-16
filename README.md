@@ -174,7 +174,7 @@ All variables are optional. The defaults below are the values in [`packages/back
 | `M3U_CACHE_TTL_MS` | `86400000` | M3U data lifetime (24 h) |
 | `DATA_MEMORY_TTL_MS` | `300000` | Time channel and EPG data stays in RAM after the last request (5 min) |
 | `MAX_CACHE_ENTRIES` | `300` | Maximum addon instances in the in-memory LRU |
-| `LOGO_CACHE_ENABLED` | `true` | Sends `Cache-Control` headers on proxied logos |
+| `LOGO_CACHE_ENABLED` | `true` | Serves proxied logos with a 6 h `Cache-Control` header. When `false`, redirects to the original URL. No effect when logos are reformatted, which IPTV-org and M3U always do |
 
 ### Refresh and program guide
 
@@ -202,7 +202,7 @@ The configure page validates Xtream playlists and EPG through this proxy when th
 
 | Variable | Default | Description |
 | --- | --- | --- |
-| `FETCH_TIMEOUT_MS` | `30000` | Playlist and stream fetches (30 s) |
+| `FETCH_TIMEOUT_MS` | `30000` | Xtream API calls and M3U playlist downloads (30 s) |
 | `EPG_FETCH_TIMEOUT_MS` | `60000` | XMLTV fetches (60 s) |
 | `LOGO_TIMEOUT_MS` | `10000` | Logo proxy requests (10 s) |
 
