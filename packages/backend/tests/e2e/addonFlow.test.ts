@@ -66,6 +66,10 @@ function playlist() {
         `${base}/live/espn.m3u8`,
         '#EXTINF:-1 group-title="Esportes",SporTV 2',
         `${base}/live/sportv2.m3u8`,
+        '#EXTINF:-1 group-title="Filmes",Tropa de Elite (2007)',
+        `${base}/movie/user/secret/501.mkv`,
+        '#EXTINF:-1 group-title="Series",Cidade Invisivel S01 E01',
+        `${base}/series/user/secret/601.mp4`,
     ].join('\n');
 }
 
@@ -179,6 +183,26 @@ describe('M3U playlist, end to end', () => {
 
     it('returns no streams for an unknown channel id', async () => {
         expect(await streams(m3uToken(), 'm3nothing_000')).toEqual([]);
+    });
+
+    it('leaves Xtream movie and series entries out by default', async () => {
+        const t = m3uToken();
+        const list = names(await metas(t));
+        expect(list).not.toContain('Tropa de Elite (2007)');
+        expect(list).not.toContain('Cidade Invisivel S01 E01');
+        expect(names(await metas(t, 'genre=Filmes'))).toEqual([]);
+    });
+
+    it('keeps movie and series entries when M3U_INCLUDE_VOD is on', async () => {
+        env.M3U_INCLUDE_VOD = true;
+        try {
+            const t = token({ provider: 'm3u', m3uUrl: `${base}/list.m3u`, catalogName: 'Com VOD' });
+            expect(names(await metas(t))).toEqual([
+                'Globo HD', 'ESPN Brasil', 'SporTV 2', 'Tropa de Elite (2007)', 'Cidade Invisivel S01 E01',
+            ]);
+        } finally {
+            env.M3U_INCLUDE_VOD = false;
+        }
     });
 });
 
