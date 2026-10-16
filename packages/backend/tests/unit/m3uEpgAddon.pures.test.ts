@@ -142,7 +142,7 @@ describe('deriveFallbackLogoUrl', () => {
 // ─── Background Update Timer ──────────────────────────────────────────────────
 
 describe('_startUpdateTimer', () => {
-  it('is idempotent — calling twice does not create two timers', () => {
+  it('is idempotent: calling twice does not create two timers', () => {
     vi.useFakeTimers();
     const addon = new M3UEPGAddon({ provider: 'm3u' });
     (addon as any)._startUpdateTimer();
@@ -180,7 +180,7 @@ describe('_evictFromMemory timer cleanup', () => {
     const spy = vi.spyOn(addon, 'updateData').mockResolvedValue(undefined);
     (addon as any)._startUpdateTimer();
     addon._evictFromMemory();
-    // Advance well past update interval — should NOT trigger updateData
+    // Advance well past update interval: should NOT trigger updateData
     vi.advanceTimersByTime(14400000 * 3);
     expect(spy).not.toHaveBeenCalled();
     vi.useRealTimers();

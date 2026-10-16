@@ -16,7 +16,7 @@ afterEach(() => {
 });
 
 // ---------------------------------------------------------------------------
-// validatePublicUrl — unit-level tests
+// validatePublicUrl: unit-level tests
 // ---------------------------------------------------------------------------
 
 describe('validatePublicUrl', () => {

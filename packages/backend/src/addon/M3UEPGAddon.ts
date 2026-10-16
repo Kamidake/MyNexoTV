@@ -533,7 +533,7 @@ export class M3UEPGAddon {
     }
 
     private _startUpdateTimer() {
-        if (this._updateTimer !== null) return; // already running — guard against double-start
+        if (this._updateTimer !== null) return; // already running: guard against double-start
         this._updateTimer = setInterval(() => {
             // Skip if circuit is open
             if (this._timerPausedUntil !== null && Date.now() < this._timerPausedUntil) return;

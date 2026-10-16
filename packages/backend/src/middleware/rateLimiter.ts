@@ -30,7 +30,7 @@ export const globalIpLimiter = rateLimit({
                 metas: [{
                     id: 'ratelimit_error',
                     type,
-                    name: '⚠️ Rate limit exceeded — please wait a few minutes before trying again.',
+                    name: '⚠️ Rate limit exceeded. Wait a few minutes and try again.',
                 }],
             });
         }
@@ -41,7 +41,7 @@ export const globalIpLimiter = rateLimit({
                 meta: {
                     id: 'ratelimit_error',
                     type,
-                    name: '⚠️ Rate limit exceeded — please wait a few minutes before trying again.',
+                    name: '⚠️ Rate limit exceeded. Wait a few minutes and try again.',
                 },
             });
         }
@@ -80,7 +80,7 @@ export const tokenLimiter = rateLimit({
                 metas: [{
                     id: 'ratelimit_error',
                     type,
-                    name: '⚠️ Rate limit exceeded — please wait a few minutes before trying again.',
+                    name: '⚠️ Rate limit exceeded. Wait a few minutes and try again.',
                 }],
             });
         }
@@ -91,7 +91,7 @@ export const tokenLimiter = rateLimit({
                 meta: {
                     id: 'ratelimit_error',
                     type,
-                    name: '⚠️ Rate limit exceeded — please wait a few minutes before trying again.',
+                    name: '⚠️ Rate limit exceeded. Wait a few minutes and try again.',
                 },
             });
         }

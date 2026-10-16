@@ -50,7 +50,7 @@ export async function fetchData(addonInstance: any) {
 
     const loginStarted = Date.now();
     if (liveResp.status === 304) {
-        addonInstance.log?.debug('Xtream 304 Not Modified — skipping update');
+        addonInstance.log?.debug('Xtream 304 Not Modified: skipping update');
         report.ok('login', 'Panel login', loginStarted, 'Channel list not changed since the last download');
         return;
     }

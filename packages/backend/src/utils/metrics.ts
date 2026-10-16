@@ -31,10 +31,10 @@ const SPIKE_THRESHOLD_MB = 40;
 const buffer: Sample[] = [];
 let spikeFlagged = false;
 let lastEvictionAt: string | null = null;
-let lastSpikeLogAt = 0;   // wall-clock ms — cooldown for spike log spam
-let lastEvictionTs = 0;   // wall-clock ms — cooldown for repeated evictions
+let lastSpikeLogAt = 0;   // wall-clock ms: cooldown for spike log spam
+let lastEvictionTs = 0;   // wall-clock ms: cooldown for repeated evictions
 
-// CPU accounting — reset in startWatchdog() just before the first tick
+// CPU accounting: reset in startWatchdog() just before the first tick
 let prevCpuUsage = process.cpuUsage();
 let prevSampleTime = Date.now();
 
@@ -42,7 +42,7 @@ function takeSample(): Sample {
     const mem = process.memoryUsage();
     const now = Date.now();
     const elapsed = now - prevSampleTime;
-    // Capture once — use same snapshot for delta AND as new baseline (avoids double syscall + drift)
+    // Capture once: use same snapshot for delta AND as new baseline (avoids double syscall + drift)
     const cpuNow = process.cpuUsage();
     const cpuDelta = { user: cpuNow.user - prevCpuUsage.user, system: cpuNow.system - prevCpuUsage.system };
     const cpuPercent = elapsed > 0
@@ -116,10 +116,10 @@ function runWatchdog(cache: LRUCache): void {
 
     // --- CRITICAL threshold + auto-eviction ---
     if (sample.heapMb > criticalMb) {
-        // Emergency zone: heap is 15%+ above critical — bypass cooldown and evict all entries.
+        // Emergency zone: heap is 15%+ above critical: bypass cooldown and evict all entries.
         // Normal zone: cooldown of 1 interval (30s) between evictions.
         const emergency = sample.heapMb > criticalMb * 1.15;
-        const evictionCooldown = intervalMs; // 30s (was 3× = 90s — too slow for fast-growing heaps)
+        const evictionCooldown = intervalMs; // 30s (was 3× = 90s: too slow for fast-growing heaps)
         if (emergency || now - lastEvictionTs > evictionCooldown) {
             const cacheSize = cache.getSize();
             if (cacheSize > 0) {
@@ -130,18 +130,18 @@ function runWatchdog(cache: LRUCache): void {
                 lastEvictionTs = now;
                 log.error(
                     `heap critical ${sample.heapMb.toFixed(1)}MB (>${criticalMb}MB)` +
-                    `${emergency ? ' [EMERGENCY — full eviction]' : ''}` +
-                    ` — evicted ${evicted} idle LRU entries`
+                    `${emergency ? ' [EMERGENCY: full eviction]' : ''}` +
+                    `: evicted ${evicted} idle LRU entries`
                 );
             } else {
                 log.error(
                     `heap critical ${sample.heapMb.toFixed(1)}MB (>${criticalMb}MB)` +
-                    ` — LRU cache is empty, no entries to evict`
+                    `: LRU cache is empty, no entries to evict`
                 );
             }
         } else {
             log.error(
-                `heap critical ${sample.heapMb.toFixed(1)}MB — eviction on cooldown,` +
+                `heap critical ${sample.heapMb.toFixed(1)}MB: eviction on cooldown,` +
                 ` next eligible in ${Math.round((evictionCooldown - (now - lastEvictionTs)) / 1000)}s`
             );
         }
@@ -166,7 +166,7 @@ export function getSnapshot(cache: LRUCache): MetricsSnapshot {
         rssMb:            latest ? Math.round(latest.rssMb * 10) / 10 : 0,
         cpuPercent:       latest ? latest.cpuPercent : 0,
         uptimeSec:        Math.floor(process.uptime()),
-        lruSize:          cache.getSize(),   // always live — never zero-defaulted
+        lruSize:          cache.getSize(),   // always live: never zero-defaulted
         lruMax:           cache.max,
         spikeFlagged,
         lastEvictionAt,

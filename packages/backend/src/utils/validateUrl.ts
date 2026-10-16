@@ -22,12 +22,12 @@ export async function validatePublicUrl(url: string): Promise<void> {
 
     const host = u.hostname;
 
-    // Direct literal check — covers cases like 127.0.0.1 or 10.0.0.1 in URL
+    // Direct literal check: covers cases like 127.0.0.1 or 10.0.0.1 in URL
     if (isPrivateIp(host)) {
         throw new Error(`Blocked host: ${host}`);
     }
 
-    // DNS resolution — covers hostnames that resolve to private IPs
+    // DNS resolution: covers hostnames that resolve to private IPs
     try {
         const { address } = await dns.promises.lookup(host);
         if (isPrivateIp(address)) {

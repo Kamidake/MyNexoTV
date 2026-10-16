@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-// Do NOT mock env here — sqliteCache.ts uses a runtime require('../config/env')
+// Do NOT mock env here: sqliteCache.ts uses a runtime require('../config/env')
 // that bypasses Vitest's ESM mock registry. The real env module loads fine
 // (dotenv gracefully handles a missing .env), and since we pass ':memory:' to
 // init(), the repoRoot value is fetched but never actually used.
@@ -8,7 +8,7 @@ import * as sqliteCache from '../../src/utils/sqliteCache';
 
 describe('sqliteCache', () => {
   beforeEach(() => {
-    // Use ':memory:' path for fully in-memory SQLite — no filesystem I/O
+    // Use ':memory:' path for fully in-memory SQLite: no filesystem I/O
     sqliteCache.init(':memory:');
   });
 
@@ -88,7 +88,7 @@ describe('sqliteCache', () => {
 
   describe('fallback to in-memory', () => {
     it('init(":memory:") returns a working in-memory database', () => {
-      // beforeEach already called init(':memory:') — verify it works
+      // beforeEach already called init(':memory:'): verify it works
       sqliteCache.set('mem-test', { inMemory: true }, 60000);
       expect(sqliteCache.get('mem-test')).toEqual({ inMemory: true });
     });
