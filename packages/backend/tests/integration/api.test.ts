@@ -161,3 +161,43 @@ describe('API routes (with CONFIG_SECRET)', () => {
     expect(res.body.encryptionEnabled).toBe(true);
   });
 });
+
+// ─── Admin cache clear ───────────────────────────────────────────────────────
+
+describe('POST /api/admin/clear-cache', () => {
+  async function appWith(adminSecret: string | null) {
+    vi.resetModules();
+    vi.doMock('../../src/config/env', () => ({
+      default: { ...baseEnv, ADMIN_SECRET: adminSecret },
+      repoRoot: '/tmp',
+    }));
+    const expressModule = await import('express');
+    const app = expressModule.default();
+    const { default: apiRouter } = await import('../../src/routes/api');
+    app.use(apiRouter);
+    return app;
+  }
+
+  afterAll(() => {
+    vi.resetModules();
+    vi.doUnmock('../../src/config/env');
+  });
+
+  it('is hidden when ADMIN_SECRET is unset', async () => {
+    const app = await appWith(null);
+    expect((await request(app).post('/api/admin/clear-cache').set('x-admin-secret', 'x')).status).toBe(404);
+  });
+
+  it('rejects a wrong secret and a secret in the query string', async () => {
+    const app = await appWith('s3cret-admin');
+    expect((await request(app).post('/api/admin/clear-cache').set('x-admin-secret', 'nope')).status).toBe(403);
+    expect((await request(app).post('/api/admin/clear-cache?secret=s3cret-admin')).status).toBe(403);
+  });
+
+  it('clears the cache with the right secret in the header', async () => {
+    const app = await appWith('s3cret-admin');
+    const res = await request(app).post('/api/admin/clear-cache').set('x-admin-secret', 's3cret-admin');
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
+  });
+});
