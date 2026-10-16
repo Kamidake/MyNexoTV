@@ -37,7 +37,7 @@ export async function fetchData(addonInstance: any) {
             addonInstance.iptvOrgEtag
         );
         if (channelsResult.data === null) {
-            addonInstance.log.debug('[iptvOrg] 304 Not Modified — skipping update');
+            addonInstance.log.debug('[iptvOrg] 304 Not Modified: skipping update');
             report.ok('catalog', 'iptv-org catalog', started, 'not changed since the last download');
             return;
         }
@@ -115,5 +115,5 @@ export async function fetchData(addonInstance: any) {
         report.ok('channels', 'Live channels', started);
     }
     report.skip('guide', 'Program guide', 'iptv-org has no guide');
-    addonInstance.log.debug(`[iptvOrg] Done — ${channels.length} channel entries (with streams)`);
+    addonInstance.log.debug(`[iptvOrg] Done: ${channels.length} channel entries (with streams)`);
 }

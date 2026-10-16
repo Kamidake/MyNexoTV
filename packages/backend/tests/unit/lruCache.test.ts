@@ -39,7 +39,7 @@ describe('LRUCache', () => {
     cache.set('a', 1);
     cache.set('b', 2);
     cache.set('c', 3);
-    cache.set('d', 4); // 'a' is oldest — should be evicted
+    cache.set('d', 4); // 'a' is oldest: should be evicted
     expect(cache.get('a')).toBeUndefined();
     expect(cache.get('b')).toBe(2);
     expect(cache.get('c')).toBe(3);
@@ -149,7 +149,7 @@ describe('LRUCache', () => {
       expect(cache.get('c')).toBe(3);
     });
 
-    it('respects LRU order — promoted entries are not evicted first', () => {
+    it('respects LRU order: promoted entries are not evicted first', () => {
       cache.set('a', 1);
       cache.set('b', 2);
       cache.set('c', 3);
@@ -157,7 +157,7 @@ describe('LRUCache', () => {
       const evicted = cache.evictLeastRecentlyUsed(1);
       expect(evicted).toBe(1);
       expect(cache.get('b')).toBeUndefined(); // 'b' is now oldest
-      expect(cache.get('a')).toBe(1);         // 'a' was promoted — survives
+      expect(cache.get('a')).toBe(1);         // 'a' was promoted: survives
       expect(cache.get('c')).toBe(3);
     });
 

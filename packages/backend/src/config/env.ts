@@ -9,7 +9,7 @@ function findRepoRoot(startDir: string): string {
     while (true) {
         if (fs.existsSync(path.join(dir, 'pnpm-workspace.yaml'))) return dir;
         const parent = path.dirname(dir);
-        if (parent === dir) return startDir; // filesystem root — fallback
+        if (parent === dir) return startDir; // filesystem root: fallback
         dir = parent;
     }
 }

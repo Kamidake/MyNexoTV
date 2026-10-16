@@ -1,61 +1,50 @@
 <p align="center">
-  <img alt="NexoTV" src=".github/assets/banner.png" width="100%">
+  <img alt="NexoTV" src=".github/assets/nexotv-banner.png" width="100%">
 </p>
 
 <p align="center">
-  A self-hostable Stremio addon for live TV. It reads an Xtream Codes panel, an M3U playlist, or the free iptv-org database and shows the channels, the program guide and the logos inside Stremio.
+  Watch your IPTV channels in Stremio. NexoTV turns an Xtream Codes panel, an M3U playlist, or the free iptv-org list into a Stremio addon with channels, logos, and a program guide.
 </p>
 
 <p align="center">
-  <a href="https://github.com/joaosavi/nexotv/stargazers"><img src="https://img.shields.io/github/stars/joaosavi/nexotv?style=flat-square&logo=github&color=ffb547&labelColor=19152f" alt="GitHub stars"></a>
-  <a href="https://github.com/joaosavi/nexotv/releases/latest"><img src="https://img.shields.io/github/v/release/joaosavi/nexotv?style=flat-square&color=ffb547&labelColor=19152f" alt="Latest release"></a>
-  <a href="https://hub.docker.com/r/savibrabo/nexotv"><img src="https://img.shields.io/docker/pulls/savibrabo/nexotv?style=flat-square&logo=docker&logoColor=white&color=ffb547&labelColor=19152f" alt="Docker pulls"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/github/license/joaosavi/nexotv?style=flat-square&color=ffb547&labelColor=19152f" alt="MIT license"></a>
+  <a href="https://github.com/joaosavi/nexotv/releases/latest"><img src="https://img.shields.io/github/v/release/joaosavi/nexotv?style=flat-square&color=3ecf8e&labelColor=1c1c1c" alt="Latest release"></a>
+  <a href="https://hub.docker.com/r/savibrabo/nexotv"><img src="https://img.shields.io/docker/pulls/savibrabo/nexotv?style=flat-square&logo=docker&logoColor=white&color=3ecf8e&labelColor=1c1c1c" alt="Docker pulls"></a>
+  <a href="https://github.com/joaosavi/nexotv/actions/workflows/test.yml"><img src="https://img.shields.io/github/actions/workflow/status/joaosavi/nexotv/test.yml?branch=main&style=flat-square&label=tests&color=3ecf8e&labelColor=1c1c1c" alt="Tests"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/joaosavi/nexotv?style=flat-square&color=3ecf8e&labelColor=1c1c1c" alt="MIT license"></a>
 </p>
 
 <p align="center">
   <a href="https://263f84288ddb-nexotv.baby-beamup.club/configure"><strong>Open the public instance</strong></a>
-  &nbsp;&nbsp;|&nbsp;&nbsp;
-  <a href="#self-host-with-docker">Self-host</a>
-  &nbsp;&nbsp;|&nbsp;&nbsp;
-  <a href="#environment-variables">Configuration</a>
-  &nbsp;&nbsp;|&nbsp;&nbsp;
-  <a href="#faq-and-troubleshooting">FAQ</a>
 </p>
 
 <table>
   <tr>
-    <td width="70%"><img alt="The configure page on a desktop browser" src=".github/assets/screenshot-desktop.png"></td>
-    <td width="30%"><img alt="The configure page on a phone" src=".github/assets/screenshot-phone.png"></td>
+    <td width="68%"><img alt="The configure page on a desktop browser" src=".github/assets/nexotv-configure-desktop.png"></td>
+    <td width="32%"><img alt="The configure page on a phone" src=".github/assets/nexotv-configure-phone.png"></td>
   </tr>
 </table>
 
-## Contents
+## Features
 
-- [Quick start](#quick-start)
-- [Providers](#providers)
-- [Features](#features)
-- [Native TV guide](#native-tv-guide)
-- [Environment variables](#environment-variables)
-- [FAQ and troubleshooting](#faq-and-troubleshooting)
-- [Support the project](#support-the-project)
+- **Three sources.** Xtream Codes panels, M3U and M3U+ playlists, and the free [iptv-org](https://github.com/iptv-org/iptv) channels filtered by country and category.
+- **Program guide.** Each channel shows what is on now and next, from the panel's XMLTV, the playlist's `url-tvg`, or a custom guide URL. Gzipped guides work too.
+- **Source check before install.** The configure page tests the source and reports channels, groups, and guide coverage, with a clear reason when a step fails.
+- **One instance, many users.** Each configuration lives in a token inside the addon URL, encrypted when `CONFIG_SECRET` is set, so there are no accounts to manage.
+- **Native TV guide** for self-hosted instances: Stremio's Discover opens the catalog as a program grid.
+- **Light on memory.** The guide is parsed as a stream, and movies and series in M3U+ playlists are skipped by default.
 
 ## Quick start
 
 ### Use the public instance
 
-1. Open [the public configure page](https://263f84288ddb-nexotv.baby-beamup.club/configure).
-2. Pick a source type and fill in the fields.
-3. Click **Check and install**. The source check lists each step and counts the channels, groups, and programmes.
-4. When the check passes, click **Open in Stremio**.
+Open the [configure page](https://263f84288ddb-nexotv.baby-beamup.club/configure), pick your source, and click **Check and install**. When the check passes, click **Open in Stremio**.
 
-The public instance runs with the default settings, so the native TV guide is off there. To get it, self-host.
+Stremio saves addons to your account, so the addon also appears on your TV and phone after you sign in there.
 
 ### Self-host with Docker
 
 ```bash
-docker run -d \
-  --name nexotv \
+docker run -d --name nexotv \
   -p 7000:7000 \
   -e CONFIG_SECRET="$(openssl rand -hex 32)" \
   -v ./data:/app/data \
@@ -63,217 +52,56 @@ docker run -d \
   savibrabo/nexotv:latest
 ```
 
-Open `http://localhost:7000/configure` on the same machine. The `./data` volume keeps the SQLite cache across restarts.
+Then open `http://localhost:7000/configure`.
 
-`CONFIG_SECRET` encrypts the personal token in each manifest URL. Keep the same value across restarts. If it changes, every installed addon stops working and each user must configure it again.
+Keep `CONFIG_SECRET` the same across restarts. If it changes, every installed addon stops working until it is configured again.
 
-### Self-host with Docker Compose
+To use the addon from other devices, serve NexoTV over HTTPS, for example behind Caddy, Traefik, or a Cloudflare Tunnel. Stremio loads remote addons only over HTTPS, and accepts plain `http://` only for `localhost` and `127.0.0.1`.
 
-```bash
-git clone https://github.com/joaosavi/nexotv.git
-cd nexotv
-cp .env.example .env    # set CONFIG_SECRET at minimum
-docker compose up -d
-```
+A [`docker-compose.yml`](docker-compose.yml) is included. Copy [`.env.example`](.env.example) to `.env` and run `docker compose up -d`.
 
-### Run from source
+## Configuration
 
-You need Node.js 18 or later, pnpm, and a C++ toolchain (`python3`, `make`, `g++`) for the `better-sqlite3` native module.
+NexoTV runs with no configuration. These are the variables most installs change:
 
-```bash
-git clone https://github.com/joaosavi/nexotv.git
-cd nexotv
-cp .env.example .env
-pnpm install
-pnpm build
-node packages/backend/dist/server.js
-```
-
-### Reach the instance from other devices
-
-Stremio installs remote addons only over HTTPS. It accepts plain `http://` for `localhost` and `127.0.0.1` only.
-
-- On the machine that runs NexoTV, `http://localhost:7000/configure` works as is.
-- For a TV, a phone, or any other device, put NexoTV behind HTTPS. A reverse proxy such as Caddy or Traefik with a certificate works, and so does a tunnel such as Cloudflare Tunnel.
-
-> [!IMPORTANT]
-> In this README, `your-host` is a placeholder. Replace it with your own domain, for example `https://tv.example.com/configure`. Do not type `your-host` into Stremio or the browser.
-
-## Providers
-
-| Tab | What you enter | Program guide (EPG) |
+| Variable | Default | What it does |
 | --- | --- | --- |
-| **IPTV-org** | Nothing. Optionally filter by country and category. | Not available |
-| **Xtream API** | Panel URL, username, and password. Live TV only. | The panel's `xmltv.php`, or a custom XMLTV URL |
-| **M3U / M3U+** | A playlist URL, including Xtream `type=m3u_plus` links | The playlist's `url-tvg` header, or a custom XMLTV URL |
-
-NexoTV is a live-TV addon, so the M3U tab skips Xtream movies and series (`/movie/` and `/series/` URLs) by default. Set `M3U_INCLUDE_VOD=true` to keep them.
-
-All three tabs accept a **Catalog name**, which replaces the addon name in Stremio's channel list. Xtream and M3U also take an EPG offset in hours, for guides published in the wrong time zone.
-
-To change an installed addon, open its configure page from Stremio. The page opens on the same source type with your settings filled in.
-
-## Features
-
-- **Per-user tokens.** Each configuration is encoded in its manifest URL, so one instance serves many users. With `CONFIG_SECRET` set, the token is encrypted with AES-256-GCM. Without it, the token is Base64URL and contains the credentials in readable form.
-- **Program guide.** Stremio's meta panel shows the current program and the upcoming schedule.
-- **User-Agent presets for M3U.** Choose TiviMate, IPTV Smarters Pro, GSE Smart IPTV, VLC, Kodi, or a custom value. A User-Agent set per channel in the playlist wins over the preset.
-- **Three cache layers.** SQLite on disk keeps channels and EPG per configuration. An in-memory LRU deduplicates concurrent requests. Channel and EPG data leaves RAM after `DATA_MEMORY_TTL_MS` of idle time and reloads from SQLite on demand.
-- **Background refresh.** Channels and EPG refresh on a timer, independent of user traffic.
-- **Protection for public instances.** Outbound fetches resolve DNS and reject private addresses (SSRF protection). Rate limits apply per IP and per token.
-- **Logo proxy.** Channel logos load through a proxy with fallback sources and optional reformatting.
-- **Health endpoint.** `GET /health` reports uptime, heap, RSS, CPU, and cache size.
-
-## Native TV guide
-
-With `EPG_NATIVE_ENABLED=true`, the catalog opens in Stremio's Discover as a program grid instead of a plain channel list. It applies to Xtream and M3U configurations that have EPG turned on.
-
-The guide is off by default and is meant for self-hosted instances. It keeps every program from 24 hours ago to `EPG_NATIVE_DAYS` ahead for each channel, instead of the next five, so RAM use grows with the number of users and channels. Leave it off on a shared instance.
-
-```bash
-docker run -d --name nexotv -p 7000:7000 \
-  -e CONFIG_SECRET="..." \
-  -e EPG_NATIVE_ENABLED=true \
-  -e EPG_NATIVE_DAYS=2 \
-  -v ./data:/app/data \
-  savibrabo/nexotv:latest
-```
-
-## Environment variables
-
-All variables are optional. The defaults below are the values in [`packages/backend/src/config/env.ts`](packages/backend/src/config/env.ts). Durations are in milliseconds.
-
-### Core
-
-| Variable | Default | Description |
-| --- | --- | --- |
+| `CONFIG_SECRET` | unset | Encrypts the token in each addon URL. Set it on any instance other people use |
 | `PORT` | `7000` | HTTP port |
-| `CONFIG_SECRET` | _(unset)_ | Encrypts tokens with AES-256-GCM. At least 16 characters. Set it on every public instance |
-| `DEBUG_MODE` | `false` | Verbose logging |
-| `ALLOW_LOCAL_URLS` | `false` | Allows `localhost` and private IPs as sources. For local testing only |
-| `M3U_INCLUDE_VOD` | `false` | Keeps Xtream movie and series entries (`/movie/` and `/series/` URLs) from M3U playlists. Off by default: VOD entries are most of an `m3u_plus` list and cost RAM |
+| `EPG_NATIVE_ENABLED` | `false` | Turns on the native TV guide. It keeps days of programmes per user in memory |
+| `M3U_INCLUDE_VOD` | `false` | Keeps movies and series from M3U+ playlists |
+| `ADDON_NAME` | `NexoTV` | Addon name shown in Stremio |
 
-### Addon identity
+[`.env.example`](.env.example) lists every variable with its default: cache, refresh intervals, timeouts, rate limits, and memory alerts.
 
-| Variable | Default | Description |
-| --- | --- | --- |
-| `ADDON_NAME` | `NexoTV` | Name shown in Stremio and on the configure page |
-| `ADDON_DESCRIPTION` | `Stream your IPTV channels in Stremio` | Description shown in Stremio and on the configure page |
-| `ADDON_LOGO_URL` | `logo.svg` from this repository on GitHub | Addon logo |
-| `ADDON_BACKGROUND_URL` | `background.png` from this repository on GitHub | Background behind the addon in Stremio |
+## Development
 
-### Cache and storage
+You need Node.js 22, pnpm 9 (`corepack enable` picks the pinned version), and a C++ toolchain for `better-sqlite3`.
 
-| Variable | Default | Description |
-| --- | --- | --- |
-| `CACHE_ENABLED` | `true` | SQLite cache and in-memory addon cache |
-| `SQLITE_PATH` | `data/cache.sqlite` in the repository root | SQLite file. In Docker this is `/app/data/cache.sqlite` |
-| `SQLITE_GC_INTERVAL_MS` | `21600000` | Interval between deletions of expired rows (6 h) |
-| `SQLITE_VACUUM_INTERVAL_MS` | `604800000` | Interval between `VACUUM` runs (7 days) |
-| `CLEAR_CACHE_ON_START` | `false` | Delete expired SQLite entries and run `VACUUM` once at startup |
-| `ADMIN_SECRET` | _(unset)_ | Enables `POST /api/admin/clear-cache` with header `x-admin-secret`. Unset, the route returns 404 |
-| `CACHE_TTL_MS` | `86400000` | Xtream data lifetime (24 h) |
-| `IPTV_ORG_CACHE_TTL_MS` | `86400000` | IPTV-org data lifetime (24 h) |
-| `M3U_CACHE_TTL_MS` | `86400000` | M3U data lifetime (24 h) |
-| `DATA_MEMORY_TTL_MS` | `300000` | Time channel and EPG data stays in RAM after the last request (5 min) |
-| `MAX_CACHE_ENTRIES` | `300` | Maximum addon instances in the in-memory LRU |
-| `LOGO_CACHE_ENABLED` | `true` | Serves proxied logos with a 6 h `Cache-Control` header. When `false`, redirects to the original URL. No effect when logos are reformatted, which IPTV-org and M3U always do |
+```bash
+git clone https://github.com/joaosavi/nexotv.git
+cd nexotv
+pnpm install
+pnpm dev          # backend on :7000, configure page with hot reload
+pnpm build        # production build of both packages
+pnpm --filter backend test
+```
 
-### Refresh and program guide
+The repository is a pnpm workspace:
 
-| Variable | Default | Description |
-| --- | --- | --- |
-| `UPDATE_INTERVAL_MS` | `14400000` | Channel refresh interval (4 h) |
-| `MIN_UPDATE_INTERVAL_MS` | `1800000` | Minimum time between two refreshes (30 min) |
-| `EPG_UPDATE_INTERVAL_MS` | `28800000` | EPG refresh interval (8 h) |
-| `EPG_MAX_BYTES` | `104857600` | Largest XMLTV file the server parses (100 MB) |
-| `EPG_NATIVE_ENABLED` | `false` | Native Stremio TV guide. See [Native TV guide](#native-tv-guide) |
-| `EPG_NATIVE_DAYS` | `2` | Days of schedule kept ahead for the native guide, from 1 to 7 |
-| `CATALOG_PAGE_SIZE` | `100` | Channels per catalog page |
+- `packages/backend` is the Express server: the Stremio addon routes, the providers, the M3U and XMLTV parsers, and the SQLite cache.
+- `packages/frontend` is the configure page, built with Vue 3 and Vite.
 
-### Timeouts
+The end-to-end tests in `packages/backend/tests/e2e` start a fake IPTV provider and run real requests through the addon, so most changes can be checked without opening Stremio.
 
-| Variable | Default | Description |
-| --- | --- | --- |
-| `FETCH_TIMEOUT_MS` | `30000` | Xtream API calls and M3U playlist downloads (30 s) |
-| `EPG_FETCH_TIMEOUT_MS` | `60000` | XMLTV fetches (60 s) |
-| `LOGO_TIMEOUT_MS` | `10000` | Logo proxy requests (10 s) |
+## Contributing
 
-### Rate limiting
+Bug reports and pull requests are welcome. Open an [issue](https://github.com/joaosavi/nexotv/issues) first for larger changes. Before you send a pull request, run `pnpm --filter backend build:check` and `pnpm --filter backend test`.
 
-| Variable | Default | Description |
-| --- | --- | --- |
-| `IP_RATE_LIMIT_ENABLED` | `true` | Limit per client IP |
-| `IP_RATE_LIMIT_WINDOW_MS` | `300000` | IP window (5 min) |
-| `IP_RATE_LIMIT_MAX` | `300` | Requests per IP per window |
-| `TOKEN_RATE_LIMIT_ENABLED` | `true` | Limit per token on addon routes |
-| `TOKEN_RATE_LIMIT_WINDOW_MS` | `60000` | Token window (1 min) |
-| `TOKEN_RATE_LIMIT_MAX` | `60` | Requests per token per window |
+## Disclaimer
 
-### Monitoring
-
-A watchdog samples heap and CPU. At the critical threshold it evicts the oldest half of the idle in-memory addon instances.
-
-| Variable | Default | Description |
-| --- | --- | --- |
-| `METRICS_SAMPLE_INTERVAL_MS` | `30000` | Sample interval (30 s) |
-| `METRICS_WARN_HEAP_MB` | `512` | Heap size that logs a warning |
-| `METRICS_CRITICAL_HEAP_MB` | `768` | Heap size that logs an error and evicts idle instances |
-
-## FAQ and troubleshooting
-
-**Stremio says the addon URL is invalid, or nothing happens on install.**
-Stremio needs HTTPS for an addon on another machine. Plain `http://` works only for `localhost` and `127.0.0.1`. See [Reach the instance from other devices](#reach-the-instance-from-other-devices).
-
-**I typed `http://your-host:7000/configure` and the page does not load.**
-`your-host` is a placeholder. Use `localhost` on the machine that runs NexoTV, or your own domain.
-
-**The source check fails.**
-The failed step in the log gives the reason, and the form field at fault shows it too. A failed program guide does not stop the install: the addon works with 0 programmes.
-
-**The program guide is empty.**
-The **Program guide** step of the source check gives the reason. The EPG fetch failed, timed out, or the file is larger than `EPG_MAX_BYTES`. Try a custom XMLTV URL, or raise `EPG_FETCH_TIMEOUT_MS` and `EPG_MAX_BYTES`.
-
-**Program times are off by a few hours.**
-Set **Guide time offset (hours)** under **Advanced options** on the configure page. Quarter hours are allowed, for example `-2.5`.
-
-**Xtream routes return `401` or `403`.**
-The panel rejected the credentials. Open the configure page from Stremio and enter them again.
-
-**Channels loaded once and never update.**
-The background timer stopped. Restart the container.
-
-**Memory is high on a small server.**
-Lower `DATA_MEMORY_TTL_MS`, `EPG_MAX_BYTES`, and `MAX_CACHE_ENTRIES`, and keep `EPG_NATIVE_ENABLED` and `M3U_INCLUDE_VOD` off.
-
-**Movies and series from my `m3u_plus` link are missing.**
-NexoTV skips them by default because they are not live channels. Set `M3U_INCLUDE_VOD=true` to keep them as catalog entries.
-
-**All installed addons stopped working after a restart.**
-`CONFIG_SECRET` changed. Set it back to the old value, or ask each user to configure the addon again.
-
-## Support the project
-
-NexoTV is free and open source.
-
-- Star the repository on [GitHub](https://github.com/joaosavi/nexotv).
-- Report bugs and request features in [GitHub Issues](https://github.com/joaosavi/nexotv/issues).
-- Open a pull request. Contributions are welcome.
-
-<p align="center">
-  <a href="https://www.star-history.com/#joaosavi/nexotv&Date">
-    <img src="https://api.star-history.com/svg?repos=joaosavi/nexotv&type=Date" alt="Star history chart" width="600">
-  </a>
-</p>
-
-## Legal notice
-
-NexoTV does not provide, host, store, or distribute any IPTV content. You are responsible for making sure the streams you use comply with the law and with your provider's terms of service.
-
-## Credits
-
-Developed by [joaosavi](https://github.com/joaosavi). Originally inspired by [Inside4ndroid](https://github.com/Inside4ndroid).
+NexoTV does not provide, host, or distribute any content. You are responsible for the sources you add and for following your provider's terms and the law where you live.
 
 ## License
 
-MIT. See [`LICENSE`](LICENSE).
+[MIT](LICENSE) © [joaosavi](https://github.com/joaosavi)

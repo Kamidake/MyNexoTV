@@ -52,7 +52,7 @@ export async function fetchData(addonInstance: any) {
         await validatePublicUrl(m3uUrl);
         resp = await withTimeout(m3uUrl, { headers: conditionalHeaders }, env.FETCH_TIMEOUT_MS);
         if (resp.status === 304) {
-            addonInstance.log?.debug('M3U 304 Not Modified — skipping parse');
+            addonInstance.log?.debug('M3U 304 Not Modified: skipping parse');
             report.ok('playlist', 'Playlist download', started, `${host} · not changed since the last download`);
             return;
         }

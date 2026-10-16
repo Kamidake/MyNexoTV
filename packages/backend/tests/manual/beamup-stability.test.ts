@@ -24,10 +24,10 @@ function makeAddon() {
 }
 
 // ---------------------------------------------------------------------------
-// 1 + 2 — Exponential backoff on refreshOnFirstCatalogRequest
+// 1 + 2: Exponential backoff on refreshOnFirstCatalogRequest
 // ---------------------------------------------------------------------------
 
-describe('refreshOnFirstCatalogRequest — exponential backoff', () => {
+describe('refreshOnFirstCatalogRequest: exponential backoff', () => {
     let addon: any;
     let realDateNow: () => number;
     let fakeNow: number;
@@ -119,14 +119,14 @@ describe('refreshOnFirstCatalogRequest — exponential backoff', () => {
         expect(addon._consecutiveRefreshFailures).toBe(3);
         const callsAfter3 = (addon.updateData as any).mock.calls.length;
 
-        // 15 min elapsed — still within 30-min cooldown
+        // 15 min elapsed: still within 30-min cooldown
         fakeNow += 15 * 60_000;
         addon.firstCatalogRefreshDone = false;
         addon.firstCatalogRefreshPromise = null;
         await addon.refreshOnFirstCatalogRequest().catch(() => {});
         expect((addon.updateData as any).mock.calls.length).toBe(callsAfter3);
 
-        // 31 min elapsed — cooldown expired, should attempt
+        // 31 min elapsed: cooldown expired, should attempt
         fakeNow += 31 * 60_000;
         addon.firstCatalogRefreshDone = false;
         addon.firstCatalogRefreshPromise = null;
@@ -152,10 +152,10 @@ describe('refreshOnFirstCatalogRequest — exponential backoff', () => {
 });
 
 // ---------------------------------------------------------------------------
-// 3 — EPG parser yields to event loop
+// 3: EPG parser yields to event loop
 // ---------------------------------------------------------------------------
 
-describe('parseEPG — cooperative scheduling (yield every 5 000 programmes)', () => {
+describe('parseEPG: cooperative scheduling (yield every 5 000 programmes)', () => {
     it('calls setImmediate at least once when processing >5 000 programmes', async () => {
         // 120 channels × 50 programmes = 6 000 entries → should yield once
         const xml = generateLargeXMLTV(120, 50);
@@ -195,10 +195,10 @@ describe('parseEPG — cooperative scheduling (yield every 5 000 programmes)', (
 });
 
 // ---------------------------------------------------------------------------
-// 4 — Circuit breaker in background timer
+// 4: Circuit breaker in background timer
 // ---------------------------------------------------------------------------
 
-describe('_startUpdateTimer — circuit breaker', () => {
+describe('_startUpdateTimer: circuit breaker', () => {
     it('opens circuit after 3 consecutive failures and logs warning', async () => {
         const addon = makeAddon();
 

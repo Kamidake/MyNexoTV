@@ -65,7 +65,7 @@ describe('cryptoConfig with CONFIG_SECRET enabled', () => {
     });
 
     it('parses base64url with URL-safe chars (- and _)', () => {
-      // base64url never contains + or / — verify the round-trip still works
+      // base64url never contains + or /: verify the round-trip still works
       const obj = { a: 1, b: 2, c: 3, d: 4, e: 5 };
       const token = Buffer.from(JSON.stringify(obj)).toString('base64url');
       expect(token).not.toMatch(/[+/]/);

@@ -127,7 +127,7 @@ describe('/:token/manifest.json', () => {
   });
 });
 
-describe('/:token routes — error paths', () => {
+describe('/:token routes: error paths', () => {
   let app: Express;
 
   beforeAll(() => {

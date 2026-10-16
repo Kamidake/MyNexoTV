@@ -8,7 +8,7 @@ export default defineConfig({
     proxy: {
       '/api': 'http://localhost:7000',
       '/encrypt': 'http://localhost:7000',
-      // Vite proxy uses string prefix matching — it cannot proxy /:token/* dynamically.
+      // Vite proxy uses string prefix matching: it cannot proxy /:token/* dynamically.
       // Token-based routes (/manifest.json, /catalog, /stream) are handled via
       // the import.meta.env.DEV workaround in useManifestPoll.ts (see below).
     }
