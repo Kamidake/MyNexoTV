@@ -1,11 +1,11 @@
 'use strict';
 
-import { Readable } from 'stream';
 import crypto from 'crypto';
 import { parseM3U } from '../parsers/m3uParser';
-import { parseEPGStream } from '../parsers/epgParser';
 import { validatePublicUrl } from '../utils/validateUrl';
 import env from '../config/env';
+import { SourceReport, describeFetchError, describeHttpStatus, formatCount, hostOf } from '../addon/sourceReport';
+import { loadGuide } from './guide';
 
 async function withTimeout(url: string, options: any, ms: number) {
     const controller = new AbortController();
@@ -30,13 +30,14 @@ function deriveBaseId(channel: any, idPrefix: string) {
 
 export async function fetchData(addonInstance: any) {
     const { config } = addonInstance;
-    const { m3uUrl } = config;
+    const report: SourceReport = addonInstance.report ?? new SourceReport();
+    const m3uUrl = typeof config.m3uUrl === 'string' ? config.m3uUrl.trim() : '';
 
-    if (!m3uUrl || typeof m3uUrl !== 'string' || !m3uUrl.trim()) {
-        throw new Error('M3U URL is required');
+    const started = Date.now();
+    if (!m3uUrl) {
+        throw report.failWith('playlist', 'Playlist download', started, 'Enter the playlist URL.', 'm3uUrl');
     }
-
-    await validatePublicUrl(m3uUrl.trim());
+    const host = hostOf(m3uUrl);
 
     const conditionalHeaders: Record<string, string> = {};
     if (addonInstance.m3uEtag) {
@@ -45,13 +46,27 @@ export async function fetchData(addonInstance: any) {
         conditionalHeaders['If-Modified-Since'] = addonInstance.m3uLastModified;
     }
 
-    const resp = await withTimeout(m3uUrl.trim(), { headers: conditionalHeaders }, env.FETCH_TIMEOUT_MS);
-
-    if (resp.status === 304) {
-        addonInstance.log?.debug('M3U 304 Not Modified — skipping parse');
-        return;
+    let resp: Response;
+    let text: string;
+    try {
+        await validatePublicUrl(m3uUrl);
+        resp = await withTimeout(m3uUrl, { headers: conditionalHeaders }, env.FETCH_TIMEOUT_MS);
+        if (resp.status === 304) {
+            addonInstance.log?.debug('M3U 304 Not Modified — skipping parse');
+            report.ok('playlist', 'Playlist download', started, `${host} · not changed since the last download`);
+            return;
+        }
+        if (!resp.ok) {
+            throw report.failWith('playlist', 'Playlist download', started,
+                describeHttpStatus(resp.status, host, 'playlist'), 'm3uUrl');
+        }
+        text = await resp.text();
+    } catch (e) {
+        if (report.hasFailed('playlist')) throw e;
+        throw report.failWith('playlist', 'Playlist download', started,
+            describeFetchError(e, m3uUrl, env.FETCH_TIMEOUT_MS), 'm3uUrl');
     }
-    if (!resp.ok) throw new Error(`M3U playlist fetch failed: HTTP ${resp.status}`);
+    report.ok('playlist', 'Playlist download', started, `${host} · ${formatCount(Math.ceil(Buffer.byteLength(text) / 1024))} KB`);
 
     addonInstance.m3uEtag = resp.headers.get('etag') ?? null;
     addonInstance.m3uLastModified = resp.headers.get('last-modified') ?? null;
@@ -59,9 +74,9 @@ export async function fetchData(addonInstance: any) {
     addonInstance.channels = [];
     addonInstance.epgData = {};
 
-    const text = await resp.text();
-
+    const parseStarted = Date.now();
     const { channels: parsed, epgUrl: detectedEpgUrl, vodSkipped } = parseM3U(text, { includeVod: env.M3U_INCLUDE_VOD });
+    report.vodSkipped = vodSkipped;
     if (vodSkipped > 0) {
         addonInstance.log?.debug(`M3U skipped ${vodSkipped} VOD entries (movie/series); set M3U_INCLUDE_VOD=true to keep them`);
     }
@@ -95,41 +110,27 @@ export async function fetchData(addonInstance: any) {
         };
     });
 
-    if (config.enableEpg) {
-        const epgSource = (config.epgUrl && config.epgUrl.trim())
-            ? config.epgUrl.trim()
-            : detectedEpgUrl;
-
-        if (epgSource) {
-            const now = Date.now();
-            const epgStale = !addonInstance.lastEpgUpdate ||
-                (now - addonInstance.lastEpgUpdate > env.EPG_UPDATE_INTERVAL_MS);
-
-            if (epgStale) {
-                try {
-                    await validatePublicUrl(epgSource);
-                    // The signal also bounds the body download, which is streamed into the parser
-                    const epgResp = await fetch(epgSource, { signal: AbortSignal.timeout(env.EPG_FETCH_TIMEOUT_MS) });
-                    if (epgResp.ok) {
-                        const contentLength = parseInt(epgResp.headers.get('content-length') ?? '0', 10);
-                        if (contentLength > env.EPG_MAX_BYTES) {
-                            const sizeMb = (contentLength / 1024 / 1024).toFixed(1);
-                            addonInstance.log?.warn(`[EPG] Content-Length too large (${sizeMb} MB), skipping download`);
-                        } else {
-                            addonInstance.epgData = await parseEPGStream(epgResp.body ? Readable.fromWeb(epgResp.body as any) : [], addonInstance.log, {
-                                nativeDays: addonInstance.nativeEpg ? env.EPG_NATIVE_DAYS : undefined,
-                            });
-                            addonInstance.lastEpgUpdate = Date.now();
-                        }
-                    }
-                } catch {
-                    // EPG is optional — continue without it
-                }
-            } else {
-                addonInstance.log?.debug('EPG skip (interval not elapsed)', {
-                    ms: now - (addonInstance.lastEpgUpdate ?? 0)
-                });
-            }
-        }
+    if (addonInstance.channels.length === 0) {
+        const why = vodSkipped > 0
+            ? `The playlist has only movies and series (${formatCount(vodSkipped)} entries), and NexoTV serves live channels.`
+            : 'The playlist has no channels. Check that the address returns an M3U file.';
+        report.fail('channels', 'Live channels', parseStarted, why, 'm3uUrl');
+    } else {
+        report.ok('channels', 'Live channels', parseStarted);
     }
+    if (vodSkipped > 0) {
+        report.skip('vod', 'Movies and series', `${formatCount(vodSkipped)} entries, not live`);
+    }
+
+    if (!config.enableEpg) {
+        report.skip('guide', 'Program guide', 'Turned off');
+        return;
+    }
+    const customEpgUrl = typeof config.epgUrl === 'string' ? config.epgUrl.trim() : '';
+    const epgSource = customEpgUrl || detectedEpgUrl;
+    if (!epgSource) {
+        report.skip('guide', 'Program guide', 'The playlist names no guide. Add a custom guide URL in the advanced options.');
+        return;
+    }
+    await loadGuide(addonInstance, report, { url: epgSource, custom: !!customEpgUrl });
 }

@@ -1,6 +1,6 @@
 /**
  * Integration tests for Express API routes (/encrypt, /api/capabilities,
- * /api/addon-info, /api/public-playlists, /api/prefetch).
+ * /api/addon-info, /api/public-playlists).
  *
  * Each describe block reloads modules via vi.resetModules() + vi.doMock() to
  * isolate different env configurations, following the pattern in
@@ -28,8 +28,6 @@ const baseEnv = {
   ADDON_DESCRIPTION: 'Test description',
   ADDON_LOGO_URL: 'https://example.com/logo.png',
   ADDON_BACKGROUND_URL: 'https://example.com/bg.png',
-  PREFETCH_ENABLED: true,
-  PREFETCH_MAX_BYTES: 150000000,
   ALLOW_LOCAL_URLS: false,
   DEBUG: false,
   LOGO_CACHE_ENABLED: true,
@@ -113,46 +111,6 @@ describe('API routes (without CONFIG_SECRET)', () => {
       expect(res.status).toBe(200);
       expect(res.body).toEqual([]);
       vi.restoreAllMocks();
-    });
-  });
-
-  describe('POST /api/prefetch', () => {
-    it('returns 400 for missing url', async () => {
-      const res = await request(app).post('/api/prefetch').send({});
-      expect(res.status).toBe(400);
-      expect(res.body.error).toMatch(/Missing url/i);
-    });
-
-    it('returns 400 for non-http URL (file://)', async () => {
-      const res = await request(app)
-        .post('/api/prefetch')
-        .send({ url: 'file:///etc/passwd' });
-      expect(res.status).toBe(400);
-      expect(res.body.error).toMatch(/Only http/i);
-    });
-
-    it('returns 400 for non-http URL (ftp://)', async () => {
-      const res = await request(app)
-        .post('/api/prefetch')
-        .send({ url: 'ftp://example.com/file' });
-      expect(res.status).toBe(400);
-      expect(res.body.error).toMatch(/Only http/i);
-    });
-
-    it('returns 400 for RFC 1918 IP in URL (10.x.x.x)', async () => {
-      const res = await request(app)
-        .post('/api/prefetch')
-        .send({ url: 'http://10.0.0.1/list.m3u' });
-      expect(res.status).toBe(400);
-      expect(res.body.error).toMatch(/Blocked host/i);
-    });
-
-    it('returns 400 for localhost URL', async () => {
-      const res = await request(app)
-        .post('/api/prefetch')
-        .send({ url: 'http://localhost/test' });
-      expect(res.status).toBe(400);
-      expect(res.body.error).toMatch(/Blocked host/i);
     });
   });
 });

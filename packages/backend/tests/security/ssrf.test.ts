@@ -78,16 +78,16 @@ describe('SSRF protection in m3uProvider', () => {
   });
 
   it('throws before fetching when m3uUrl has a private IP', async () => {
-    await expect(m3uFetchData(makeAddon('http://10.0.0.1/playlist.m3u'))).rejects.toThrow('Blocked host');
+    await expect(m3uFetchData(makeAddon('http://10.0.0.1/playlist.m3u'))).rejects.toThrow('on a private network');
   });
 
   it('throws before fetching when m3uUrl has 127.0.0.1', async () => {
-    await expect(m3uFetchData(makeAddon('http://127.0.0.1/playlist.m3u'))).rejects.toThrow('Blocked host');
+    await expect(m3uFetchData(makeAddon('http://127.0.0.1/playlist.m3u'))).rejects.toThrow('on a private network');
   });
 
   it('throws when m3uUrl hostname resolves to private IP', async () => {
     vi.spyOn(dns.promises, 'lookup').mockResolvedValue({ address: '192.168.1.100', family: 4 });
-    await expect(m3uFetchData(makeAddon('http://private.corp/playlist.m3u'))).rejects.toThrow('Blocked host');
+    await expect(m3uFetchData(makeAddon('http://private.corp/playlist.m3u'))).rejects.toThrow('on a private network');
   });
 });
 
@@ -110,15 +110,15 @@ describe('SSRF protection in xtreamProvider', () => {
   });
 
   it('throws before fetching when xtreamUrl has a private IP', async () => {
-    await expect(xtreamFetchData(makeAddon('http://10.0.0.1'))).rejects.toThrow('Blocked host');
+    await expect(xtreamFetchData(makeAddon('http://10.0.0.1'))).rejects.toThrow('on a private network');
   });
 
   it('throws before fetching when xtreamUrl has 127.0.0.1', async () => {
-    await expect(xtreamFetchData(makeAddon('http://127.0.0.1'))).rejects.toThrow('Blocked host');
+    await expect(xtreamFetchData(makeAddon('http://127.0.0.1'))).rejects.toThrow('on a private network');
   });
 
   it('throws when xtreamUrl hostname resolves to private IP via DNS', async () => {
     vi.spyOn(dns.promises, 'lookup').mockResolvedValue({ address: '172.16.0.1', family: 4 });
-    await expect(xtreamFetchData(makeAddon('http://internal-xtream.corp'))).rejects.toThrow('Blocked host');
+    await expect(xtreamFetchData(makeAddon('http://internal-xtream.corp'))).rejects.toThrow('on a private network');
   });
 });

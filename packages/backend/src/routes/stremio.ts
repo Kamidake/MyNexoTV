@@ -7,6 +7,7 @@ import createAddon from '../addon/builder';
 import env from '../config/env';
 import { makeLogger } from '../utils/logger';
 import LRUCache from '../utils/lruCache';
+import { runCheck } from '../addon/check';
 
 const log = makeLogger();
 const router = Router();
@@ -99,6 +100,19 @@ router.get('/:token/manifest.json', tokenLimiter, (req: any, res) => {
     res.setHeader('Pragma', 'no-cache');
     res.setHeader('Expires', '0');
     res.end(JSON.stringify(manifest));
+});
+
+// The configure page calls this before it offers the install: the check runs the
+// same build as Stremio, so the install that follows hits a warm cache.
+router.get('/:token/check.json', tokenLimiter, async (req: any, res) => {
+    const addon = req.addonInterface?.addonInstance;
+    if (!addon) return res.status(500).json({ error: 'Interface not ready' });
+    try {
+        res.json(await runCheck(addon));
+    } catch (e: any) {
+        log.error('[CHECK] Failed:', e.message);
+        res.status(500).json({ error: 'Check failed' });
+    }
 });
 
 router.use('/:token', tokenLimiter, (req: any, res, next) => {

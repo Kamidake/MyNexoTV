@@ -79,6 +79,14 @@ function provider(req: http.IncomingMessage, res: http.ServerResponse) {
         res.writeHead(200, { 'Content-Type': 'audio/x-mpegurl' });
         return res.end(playlist());
     }
+    if (url.pathname === '/vod-only.m3u') {
+        res.writeHead(200, { 'Content-Type': 'audio/x-mpegurl' });
+        return res.end(playlist().split('\n').filter((line, i) => i === 0 || i >= 7).join('\n'));
+    }
+    if (url.pathname === '/no-guide.m3u') {
+        res.writeHead(200, { 'Content-Type': 'audio/x-mpegurl' });
+        return res.end(playlist().replace(`url-tvg="${base}/epg.gz"`, `url-tvg="${base}/missing.xml"`));
+    }
     if (url.pathname === '/epg.gz' || url.pathname === '/xmltv.php') {
         res.writeHead(200, { 'Content-Type': 'application/gzip' });
         return res.end(zlib.gzipSync(buildGuide()));
@@ -250,6 +258,105 @@ describe('native Stremio guide, end to end', () => {
         } finally {
             env.EPG_NATIVE_ENABLED = false;
         }
+    });
+});
+
+interface CheckStep { id: string; status: 'ok' | 'skip' | 'fail'; detail: string; field?: string }
+interface Check {
+    ok: boolean; provider: string; channels: number; groups: number; programmes: number;
+    channelsWithGuide: number; vodSkipped: number; steps: CheckStep[]; error?: string;
+}
+
+async function check(t: string): Promise<Check> {
+    const res = await request(app).get(`/${t}/check.json`);
+    expect(res.status).toBe(200);
+    return res.body;
+}
+
+const step = (c: Check, id: string) => c.steps.find(s => s.id === id);
+
+describe('source check, end to end', () => {
+    it('passes an M3U playlist and counts channels, groups, programmes and skipped VOD', async () => {
+        const c = await check(m3uToken());
+        expect(c).toMatchObject({ ok: true, provider: 'm3u', channels: 3, groups: 2, programmes: 10, channelsWithGuide: 2, vodSkipped: 2 });
+        expect(c.steps.map(s => [s.id, s.status])).toEqual([
+            ['playlist', 'ok'], ['channels', 'ok'], ['vod', 'skip'], ['guide', 'ok'],
+        ]);
+        expect(step(c, 'channels')?.detail).toBe('3 in 2 groups');
+        expect(step(c, 'vod')?.detail).toBe('2 entries, not live');
+        expect(step(c, 'guide')?.detail).toBe('2 of 3 channels matched');
+        expect(c.error).toBeUndefined();
+    });
+
+    it('skips the guide when it is turned off', async () => {
+        const c = await check(token({ provider: 'm3u', m3uUrl: `${base}/list.m3u` }));
+        expect(c.ok).toBe(true);
+        expect(c.programmes).toBe(0);
+        expect(step(c, 'guide')).toMatchObject({ status: 'skip', detail: 'Turned off' });
+    });
+
+    it('passes with 0 programmes when the guide fails, and says why', async () => {
+        const c = await check(token({ provider: 'm3u', m3uUrl: `${base}/no-guide.m3u`, enableEpg: true }));
+        expect(c.ok).toBe(true);
+        expect(c.channels).toBe(3);
+        expect(c.programmes).toBe(0);
+        expect(step(c, 'guide')?.status).toBe('fail');
+        expect(step(c, 'guide')?.detail).toContain('HTTP 404');
+    });
+
+    it('points a failed custom guide at the guide URL field', async () => {
+        const c = await check(token({ provider: 'm3u', m3uUrl: `${base}/list.m3u`, enableEpg: true, epgUrl: `${base}/list.m3u` }));
+        expect(c.ok).toBe(true);
+        expect(step(c, 'guide')).toMatchObject({ status: 'fail', field: 'epgUrl' });
+    });
+
+    it('fails a playlist that has only movies and series', async () => {
+        const c = await check(token({ provider: 'm3u', m3uUrl: `${base}/vod-only.m3u` }));
+        expect(c.ok).toBe(false);
+        expect(c.vodSkipped).toBe(2);
+        expect(step(c, 'channels')).toMatchObject({ status: 'fail', field: 'm3uUrl' });
+        expect(c.error).toContain('only movies and series');
+    });
+
+    it('fails a playlist URL that answers 404', async () => {
+        const c = await check(token({ provider: 'm3u', m3uUrl: `${base}/nothing.m3u` }));
+        expect(c.ok).toBe(false);
+        expect(step(c, 'playlist')).toMatchObject({ status: 'fail', field: 'm3uUrl' });
+        expect(c.error).toContain('HTTP 404');
+    });
+
+    it('fails an unreachable host with a plain reason', async () => {
+        const closed = http.createServer();
+        await new Promise<void>(resolve => closed.listen(0, '127.0.0.1', resolve));
+        const { port } = closed.address() as { port: number };
+        await new Promise<void>(resolve => closed.close(() => resolve()));
+        const c = await check(token({ provider: 'm3u', m3uUrl: `http://127.0.0.1:${port}/list.m3u` }));
+        expect(c.ok).toBe(false);
+        expect(c.error).toBe('127.0.0.1 refused the connection. Check the address and port.');
+    });
+
+    it('passes an Xtream panel with the guide from xmltv.php', async () => {
+        const t = token({ provider: 'xtream', xtreamUrl: base, xtreamUsername: 'user', xtreamPassword: 'secret', enableEpg: true });
+        const c = await check(t);
+        expect(c).toMatchObject({ ok: true, provider: 'xtream', channels: 2, groups: 1, programmes: 10, channelsWithGuide: 1 });
+        expect(c.steps.map(s => [s.id, s.status])).toEqual([
+            ['server', 'ok'], ['login', 'ok'], ['channels', 'ok'], ['guide', 'ok'],
+        ]);
+    });
+
+    it('fails an Xtream login with a wrong password and points at the password', async () => {
+        const t = token({ provider: 'xtream', xtreamUrl: base, xtreamUsername: 'user', xtreamPassword: 'wrong' });
+        const c = await check(t);
+        expect(c.ok).toBe(false);
+        expect(step(c, 'server')?.status).toBe('ok');
+        expect(step(c, 'login')).toMatchObject({ status: 'fail', field: 'xtreamPassword' });
+        expect(c.error).toBe('127.0.0.1 rejected the login (HTTP 401). Check the username and password.');
+        expect(JSON.stringify(c)).not.toContain('wrong');
+    });
+
+    it('never puts the password or the playlist path in the response', async () => {
+        const t = token({ provider: 'm3u', m3uUrl: `${base}/nothing.m3u?password=hunter2` });
+        expect(JSON.stringify(await check(t))).not.toMatch(/hunter2|nothing\.m3u/);
     });
 });
 

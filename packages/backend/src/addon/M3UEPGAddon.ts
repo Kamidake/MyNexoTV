@@ -7,6 +7,7 @@ import env from '../config/env';
 import * as xtreamProvider from '../providers/xtreamProvider';
 import * as iptvOrgProvider from '../providers/iptvOrgProvider';
 import * as m3uProvider from '../providers/m3uProvider';
+import { SourceReport, computeStats, formatCount } from './sourceReport';
 
 const CACHE_ENABLED = env.CACHE_ENABLED;
 const CACHE_TTL_MS = env.CACHE_TTL_MS;
@@ -87,11 +88,23 @@ export function createCacheKey(config: AddonConfig) {
     return crypto.createHash('md5').update(stableStringify(minimal)).digest('hex');
 }
 
+/**
+ * Key for builds and stored data. The cache key leaves the Xtream password out so
+ * channel ids survive a password change, but data fetched with one password holds
+ * stream URLs with that password, so it must never be served to another one.
+ */
+export function createStorageKey(config: AddonConfig, cacheKey = createCacheKey(config)) {
+    if ((config.provider || 'xtream') !== 'xtream') return cacheKey;
+    const secret = crypto.createHash('sha256').update(String(config.xtreamPassword ?? '')).digest('hex').slice(0, 16);
+    return `${cacheKey}:${secret}`;
+}
+
 export class M3UEPGAddon {
     providerName: string;
     config: AddonConfig;
     manifestRef: any;
     cacheKey: string;
+    storageKey: string;
     idPrefix: string;
     updateInterval: number;
     channels: any[];
@@ -114,6 +127,10 @@ export class M3UEPGAddon {
     private _timerPausedUntil: number | null = null;
     cacheTtl: number;
     nativeEpg: boolean;
+    /** Steps of the provider fetch in progress, read by the providers. */
+    report: SourceReport | null = null;
+    /** Steps and counts of the last finished provider fetch, read by the check endpoint. */
+    lastReport: SourceReport | null = null;
     log: ReturnType<typeof makeLogger>;
 
     constructor(config: AddonConfig = {}, manifestRef?: any) {
@@ -121,6 +138,7 @@ export class M3UEPGAddon {
         this.config = config;
         this.manifestRef = manifestRef;
         this.cacheKey = createCacheKey(config);
+        this.storageKey = createStorageKey(config, this.cacheKey);
         this.idPrefix = this.cacheKey.slice(0, 8);
         this.updateInterval = env.UPDATE_INTERVAL_MS;
         this.channels = [];
@@ -167,7 +185,7 @@ export class M3UEPGAddon {
 
     async saveChannelsToCache() {
         if (!CACHE_ENABLED) return;
-        sqliteCache.setRaw('addon:channels:' + this.cacheKey, {
+        sqliteCache.setRaw('addon:channels:' + this.storageKey, {
             channels: this.channels,
             lastUpdate: this.lastUpdate,
             m3uEtag: this.m3uEtag ?? null,
@@ -181,7 +199,7 @@ export class M3UEPGAddon {
 
     async loadChannelsFromCache() {
         if (!CACHE_ENABLED) return;
-        const cached = sqliteCache.getRaw('addon:channels:' + this.cacheKey);
+        const cached = sqliteCache.getRaw('addon:channels:' + this.storageKey);
         if (cached) {
             this.channels = cached.channels || [];
             this.channelMap = new Map(this.channels.map(c => [c.id, c]));
@@ -196,7 +214,7 @@ export class M3UEPGAddon {
     }
 
     epgCacheKey() {
-        return 'addon:epg:' + this.cacheKey + (this.nativeEpg ? ':native' : '');
+        return 'addon:epg:' + this.storageKey + (this.nativeEpg ? ':native' : '');
     }
 
     async saveEpgToCache() {
@@ -256,12 +274,15 @@ export class M3UEPGAddon {
                 return;
             }
         }
+        const report = new SourceReport();
+        this.report = report;
         try {
             const start = Date.now();
             const providerModule = PROVIDER_MAP[this.providerName];
             if (!providerModule) throw new Error(`Unknown provider: ${this.providerName}`);
             const epgUpdateTimeBefore = this.lastEpgUpdate;
             await providerModule.fetchData(this);
+            await this.finishReport(report);
             this.channelMap = new Map(this.channels.map(c => [c.id, c]));
             this.lastUpdate = Date.now();
             if (CACHE_ENABLED && this.channels.length > 0) {
@@ -278,6 +299,27 @@ export class M3UEPGAddon {
         } catch (e: any) {
             this.log.error('[UPDATE] Failed:', e.message);
             throw e;
+        } finally {
+            report.finishedAt = Date.now();
+            this.report = null;
+            this.lastReport = report;
+        }
+    }
+
+    /** Counts what the fetch produced and writes the counts into the step details. */
+    private async finishReport(report: SourceReport) {
+        // A guide kept from an earlier download lives in the cache, not in memory
+        if (Object.keys(this.epgData).length === 0 && report.steps.some(s => s.id === 'guide' && s.status === 'skip')) {
+            await this.loadEpgFromCache();
+        }
+        const stats = computeStats(this.channels, this.epgData);
+        report.stats = stats;
+        for (const step of report.steps) {
+            if (step.id === 'channels' && step.status === 'ok') {
+                step.detail = `${formatCount(stats.channels)} in ${formatCount(stats.groups)} groups`;
+            } else if (step.id === 'guide' && step.status === 'ok') {
+                step.detail = `${formatCount(stats.channelsWithGuide)} of ${formatCount(stats.channels)} channels matched`;
+            }
         }
     }
 
@@ -316,7 +358,7 @@ export class M3UEPGAddon {
             this.iptvOrgEtag = null;
             this.xtreamEtag = null;
             if (CACHE_ENABLED) {
-                sqliteCache.del('addon:channels:' + this.cacheKey);
+                sqliteCache.del('addon:channels:' + this.storageKey);
                 sqliteCache.del(this.epgCacheKey());
             }
             await this.updateData(true);

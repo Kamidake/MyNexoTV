@@ -1,151 +1,106 @@
 <template>
-  <form class="config-form" autocomplete="off">
-    <fieldset>
-      <legend>Playlist</legend>
-
-
-      <div class="form-group">
-        <label for="m3uUrl">Playlist URL <span class="req">*</span></label>
-        <input type="url" id="m3uUrl" v-model="form.m3uUrl"
+  <form class="config-form" autocomplete="off" novalidate @submit.prevent="handleSubmit">
+    <StepBlock :n="2" title="Playlist" :done="!!form.m3uUrl.trim()">
+      <div class="field">
+        <label for="m3uUrl">Playlist URL</label>
+        <input type="url" id="m3uUrl" class="mono" v-model="form.m3uUrl"
           placeholder="http://provider.com/get.php?username=X&password=Y&type=m3u_plus"
-          autocomplete="off">
+          :aria-invalid="!!errors.m3uUrl" aria-describedby="m3uUrl-error" @input="delete errors.m3uUrl">
+        <p v-if="errors.m3uUrl" id="m3uUrl-error" class="field-error">{{ errors.m3uUrl }}</p>
       </div>
-
-      <div class="form-group">
-        <label class="group-label">
-          Public playlists
-          <span class="hint">Third-party, not affiliated with NexoTV</span>
-        </label>
-        <div class="playlist-chips">
-          <button
-            v-for="pl in playlists"
-            :key="pl.url"
-            type="button"
-            class="playlist-chip"
-            :title="pl.url"
-            @click="form.m3uUrl = pl.url"
-          >
-            <span class="chip-label">{{ pl.label }}</span>
-            <span class="chip-note">{{ pl.note || '' }}</span>
+      <div v-if="playlists.length" class="field">
+        <span class="field-label" id="m3uPublic-label">Public playlists, third-party</span>
+        <div class="chips" role="group" aria-labelledby="m3uPublic-label">
+          <button v-for="pl in playlists" :key="pl.url" type="button" class="chip"
+            :class="{ active: form.m3uUrl === pl.url }" :title="pl.url" @click="usePlaylist(pl.url)">
+            {{ pl.label }}<span v-if="pl.note" class="chip-note">{{ pl.note }}</span>
           </button>
         </div>
       </div>
-    </fieldset>
+    </StepBlock>
 
-    <fieldset>
-      <legend>Program guide</legend>
-
-      <div class="form-group checkbox-line">
-        <input type="checkbox" id="m3uEnableEpg" v-model="form.enableEpg">
-        <label class="checkbox-label" for="m3uEnableEpg">Enable EPG</label>
-      </div>
-
-      <template v-if="form.enableEpg">
-        <div class="form-group">
-          <label class="group-label">EPG source</label>
-          <div class="radio-group">
-            <label class="checkbox-line">
-              <input type="radio" name="m3uEpgMode" value="auto" v-model="form.epgMode">
-              <span class="checkbox-label">From playlist header (<code>url-tvg</code>)</span>
-            </label>
-            <label class="checkbox-line">
-              <input type="radio" name="m3uEpgMode" value="custom" v-model="form.epgMode">
-              <span class="checkbox-label">Custom XMLTV URL</span>
-            </label>
+    <StepBlock :n="3" title="Options" :done="check.state.phase === 'passed'">
+      <CheckBox id="m3uEnableEpg" v-model="form.enableEpg">Load the program guide</CheckBox>
+      <AdvancedPanel id="m3u-advanced" v-model:open="advancedOpen">
+        <div class="field">
+          <label for="m3uCatalogName">Catalog name</label>
+          <input type="text" id="m3uCatalogName" v-model="form.catalogName" :placeholder="addonName">
+        </div>
+        <div class="field">
+          <label for="m3uEpgOffsetHours">Guide time offset (hours)</label>
+          <input type="number" step="0.25" min="-48" max="48" id="m3uEpgOffsetHours" class="mono" v-model.number="form.epgOffsetHours"
+            :disabled="!form.enableEpg" :aria-invalid="!!errors.m3uEpgOffsetHours" aria-describedby="m3uEpgOffsetHours-error"
+            @input="delete errors.m3uEpgOffsetHours">
+          <p v-if="errors.m3uEpgOffsetHours" id="m3uEpgOffsetHours-error" class="field-error">{{ errors.m3uEpgOffsetHours }}</p>
+        </div>
+        <div class="field field-wide">
+          <label for="m3uCustomEpgUrl">Custom guide URL</label>
+          <input type="url" id="m3uCustomEpgUrl" class="mono" v-model="form.customEpgUrl" placeholder="Use the playlist's url-tvg"
+            :disabled="!form.enableEpg" :aria-invalid="!!errors.m3uCustomEpgUrl" aria-describedby="m3uCustomEpgUrl-error"
+            @input="delete errors.m3uCustomEpgUrl">
+          <p v-if="errors.m3uCustomEpgUrl" id="m3uCustomEpgUrl-error" class="field-error">{{ errors.m3uCustomEpgUrl }}</p>
+        </div>
+        <div class="field field-wide">
+          <span class="field-label" id="m3uUa-label">User-Agent</span>
+          <div class="chips" role="group" aria-labelledby="m3uUa-label">
+            <button v-for="p in USER_AGENT_PRESETS" :key="p.value" type="button" class="chip"
+              :class="{ active: form.userAgentPreset === p.value }" :aria-pressed="form.userAgentPreset === p.value"
+              @click="selectPreset(p.value)">{{ p.label }}</button>
+            <button type="button" class="chip" :class="{ active: form.userAgentPreset === 'custom' }"
+              :aria-pressed="form.userAgentPreset === 'custom'" @click="selectPreset('custom')">Custom</button>
           </div>
+          <input v-if="form.userAgentPreset === 'custom'" type="text" id="m3uGlobalUserAgent" class="mono"
+            v-model="form.globalUserAgent" placeholder="MyPlayer/1.0" aria-label="Custom User-Agent">
         </div>
-
-        <div v-if="form.epgMode === 'custom'" class="form-group">
-          <label for="m3uCustomEpgUrl">XMLTV URL</label>
-          <input type="url" id="m3uCustomEpgUrl" v-model="form.customEpgUrl"
-            placeholder="https://provider.com/epg.xml">
+        <div class="field-wide">
+          <CheckBox id="m3uReformatLogos" v-model="form.reformatLogos">Reformat channel logos</CheckBox>
         </div>
-
-        <div class="form-group">
-          <label for="m3uEpgOffsetHours">EPG offset (hours)</label>
-          <input type="number" step="0.25" id="m3uEpgOffsetHours" v-model.number="form.epgOffsetHours"
-            min="-48" max="48">
-        </div>
-      </template>
-
-      <div class="form-group checkbox-line">
-        <input type="checkbox" id="m3uReformatLogos" v-model="form.reformatLogos">
-        <label class="checkbox-label" for="m3uReformatLogos">Reformat logos
-          <span class="hint">(may slow down loading)</span></label>
-      </div>
-    </fieldset>
-
-    <fieldset>
-      <legend>Advanced</legend>
-      <div class="form-group">
-        <label class="group-label">User-Agent
-          <span class="hint">Only if your provider requires a specific player</span>
-        </label>
-        <div class="playlist-chips">
-          <button
-            v-for="p in USER_AGENT_PRESETS"
-            :key="p.value"
-            type="button"
-            class="playlist-chip"
-            :class="{ active: form.userAgentPreset === p.value }"
-            @click="selectPreset(p.value)"
-          >
-            <span class="chip-label">{{ p.label }}</span>
-          </button>
-          <button
-            type="button"
-            class="playlist-chip"
-            :class="{ active: form.userAgentPreset === 'custom' }"
-            @click="selectPreset('custom')"
-          >
-            <span class="chip-label">Custom…</span>
-          </button>
-        </div>
-        <input v-if="form.userAgentPreset === 'custom'" type="text" id="m3uGlobalUserAgent"
-          v-model="form.globalUserAgent" placeholder="e.g. MyPlayer/1.0" class="ua-input">
-        <small class="hint">A User-Agent set per channel in the playlist wins over this one.</small>
-      </div>
-    </fieldset>
-
-    <fieldset>
-      <legend>Display</legend>
-      <div class="form-group">
-        <label for="m3uCatalogName">Catalog name</label>
-        <input type="text" id="m3uCatalogName" v-model="form.catalogName"
-          placeholder="NexoTV">
-        <small class="hint">Shown in Stremio's channel list.</small>
-      </div>
-    </fieldset>
+      </AdvancedPanel>
+    </StepBlock>
 
     <div class="form-actions">
-      <button class="btn primary" type="button" @click="handleInstall">
-        Install addon
+      <button type="submit" class="btn btn-primary" :disabled="check.state.phase === 'running'">
+        {{ check.state.phase === 'running' ? 'Checking…' : 'Check and install' }}
       </button>
+      <button type="button" class="btn" @click="resetForm">Reset</button>
     </div>
   </form>
 </template>
 
 <script setup lang="ts">
-import { reactive, inject, onMounted } from 'vue'
+import { reactive, ref, computed, onMounted } from 'vue'
+import StepBlock from './StepBlock.vue'
+import CheckBox from './CheckBox.vue'
+import AdvancedPanel from './AdvancedPanel.vue'
 import { usePublicPlaylists } from '../composables/usePublicPlaylists'
 import { useDecodedToken } from '../composables/useDecodedToken'
+import { useAddonInfo } from '../composables/useAddonInfo'
+import { useSourceCheck } from '../composables/useSourceCheck'
+import { useFieldErrors, isHttpUrl } from '../composables/useFieldErrors'
 import type { M3uConfig } from '../types/config'
 
-const oc = inject<any>('overlayControl')!
-const { playlists } = usePublicPlaylists()
+type FieldId = 'm3uUrl' | 'm3uEpgOffsetHours' | 'm3uCustomEpgUrl'
+const FIELD_ORDER: readonly FieldId[] = ['m3uUrl', 'm3uEpgOffsetHours', 'm3uCustomEpgUrl']
+const ADVANCED_FIELDS: readonly FieldId[] = ['m3uEpgOffsetHours', 'm3uCustomEpgUrl']
 
 const USER_AGENT_PRESETS = [
-  { label: 'TiviMate',         value: 'TiviMate/4.7.0 (Android)' },
+  { label: 'TiviMate',          value: 'TiviMate/4.7.0 (Android)' },
   { label: 'IPTV Smarters Pro', value: 'IPTV Smarters Pro' },
-  { label: 'GSE Smart IPTV',   value: 'GSE/7.6 CFNetwork/1410.1 Darwin/22.6.0' },
-  { label: 'VLC',              value: 'VLC/3.0.18 LibVLC/3.0.18' },
-  { label: 'Kodi',             value: 'Kodi/21.0 (X11; Linux x86_64) App_Bitness/64 Version/21.0' },
+  { label: 'GSE Smart IPTV',    value: 'GSE/7.6 CFNetwork/1410.1 Darwin/22.6.0' },
+  { label: 'VLC',               value: 'VLC/3.0.18 LibVLC/3.0.18' },
+  { label: 'Kodi',              value: 'Kodi/21.0 (X11; Linux x86_64) App_Bitness/64 Version/21.0' },
 ]
 
-const form = reactive({
+const check = useSourceCheck()
+const { playlists } = usePublicPlaylists()
+const { info: addonInfo } = useAddonInfo()
+const addonName = computed(() => addonInfo.value?.name ?? 'NexoTV')
+const { errors, clear, set, has, focusFirst, applyResult } = useFieldErrors<FieldId>()
+const advancedOpen = ref(false)
+
+const defaults = () => ({
   m3uUrl: '',
   enableEpg: false,
-  epgMode: 'auto',
   customEpgUrl: '',
   epgOffsetHours: 0,
   reformatLogos: false,
@@ -153,10 +108,15 @@ const form = reactive({
   userAgentPreset: '',
   globalUserAgent: '',
 })
+const form = reactive(defaults())
+
+function usePlaylist(url: string) {
+  form.m3uUrl = url
+  delete errors.m3uUrl
+}
 
 function selectPreset(value: string) {
   if (form.userAgentPreset === value) {
-    // toggle off
     form.userAgentPreset = ''
     form.globalUserAgent = ''
     return
@@ -171,53 +131,71 @@ onMounted(() => {
   const d = decodedConfig as M3uConfig
   form.m3uUrl = d.m3uUrl || ''
   form.enableEpg = !!d.enableEpg
-  if (d.epgUrl) {
-    form.epgMode = 'custom'
-    form.customEpgUrl = d.epgUrl
-  }
+  form.customEpgUrl = d.epgUrl || ''
   form.epgOffsetHours = d.epgOffsetHours ?? 0
   form.reformatLogos = !!d.reformatLogos
-  form.catalogName = (decodedConfig as any).catalogName || ''
+  form.catalogName = decodedConfig.catalogName || ''
   const savedUa = d.globalUserAgent || ''
   if (savedUa) {
     const match = USER_AGENT_PRESETS.find(p => p.value === savedUa)
     form.userAgentPreset = match ? match.value : 'custom'
     form.globalUserAgent = savedUa
   }
+  advancedOpen.value = !!(d.epgUrl || d.epgOffsetHours || d.reformatLogos || savedUa || decodedConfig.catalogName)
 })
 
-async function handleInstall() {
-  const m3uUrl = form.m3uUrl.trim()
-  if (!m3uUrl) { alert('Please enter a playlist URL.'); return }
-  try { new URL(m3uUrl) } catch {
-    alert('Please enter a valid URL (must start with http:// or https://).')
+function validate() {
+  clear()
+  const url = form.m3uUrl.trim()
+  if (!url) set('m3uUrl', 'Enter the playlist URL.')
+  else if (!isHttpUrl(url)) set('m3uUrl', 'Enter a URL that starts with http:// or https://.')
+  if (form.enableEpg) {
+    const offset = form.epgOffsetHours
+    if (typeof offset !== 'number' || !isFinite(offset) || Math.abs(offset) > 48) {
+      set('m3uEpgOffsetHours', 'Enter a number of hours from -48 to 48.')
+    }
+    const custom = form.customEpgUrl.trim()
+    if (custom && !isHttpUrl(custom)) set('m3uCustomEpgUrl', 'Enter a URL that starts with http:// or https://.')
+  }
+}
+
+function openAdvancedIfNeeded() {
+  if (ADVANCED_FIELDS.some(f => errors[f])) advancedOpen.value = true
+}
+
+async function handleSubmit() {
+  validate()
+  if (has()) {
+    openAdvancedIfNeeded()
+    await focusFirst(FIELD_ORDER)
     return
   }
 
   const enableEpg = form.enableEpg
-  const customEpgUrl = form.epgMode === 'custom' ? form.customEpgUrl.trim() : ''
+  const customEpgUrl = enableEpg ? form.customEpgUrl.trim() : ''
   const epgOffsetHours = form.epgOffsetHours || 0
 
   const config: M3uConfig & { catalogName?: string } = {
     provider: 'm3u',
-    m3uUrl,
+    m3uUrl: form.m3uUrl.trim(),
     enableEpg,
     reformatLogos: form.reformatLogos,
     ...(enableEpg && epgOffsetHours !== 0 ? { epgOffsetHours } : {}),
-    ...(enableEpg && customEpgUrl ? { epgUrl: customEpgUrl } : {}),
+    ...(customEpgUrl ? { epgUrl: customEpgUrl } : {}),
     ...(form.catalogName.trim() ? { catalogName: form.catalogName.trim() } : {}),
     ...(form.globalUserAgent.trim() ? { globalUserAgent: form.globalUserAgent.trim() } : {}),
   }
 
-  oc.showOverlay(false)
-  oc.setProgress(5, 'Building M3U addon…')
+  const result = await check.run(config)
+  const fields = applyResult(result, f => (f === 'm3uUrl' ? 'm3uUrl' : f === 'epgUrl' ? 'm3uCustomEpgUrl' : undefined))
+  openAdvancedIfNeeded()
+  if (fields.length && !result?.ok) await focusFirst(FIELD_ORDER)
+}
 
-  try {
-    const { manifestUrl, stremioUrl } = await oc.buildUrls(config)
-    oc.startPolling(manifestUrl, stremioUrl, 10)
-  } catch (e: any) {
-    oc.hideOverlay()
-    alert('Error generating addon URL: ' + e.message)
-  }
+function resetForm() {
+  Object.assign(form, defaults())
+  advancedOpen.value = false
+  clear()
+  check.reset()
 }
 </script>

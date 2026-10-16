@@ -9,14 +9,6 @@ export interface XtreamConfig {
   epgUrl?: string;
   epgOffsetHours?: number;
   reformatLogos: boolean;
-  prescan?: {
-    liveCount: number;
-    categoryCount: number;
-    epgProgrammes: number;
-    epgChannels: number;
-    mode: string;
-    epgSource: string;
-  };
   instanceId?: string;
 }
 
@@ -49,4 +41,31 @@ export interface PublicPlaylist {
   label: string;
   note?: string;
   url: string;
+}
+
+/** A config field the server can blame for a failed step. */
+export type ConfigField = 'xtreamUrl' | 'xtreamUsername' | 'xtreamPassword' | 'm3uUrl' | 'epgUrl';
+
+export type StepStatus = 'ok' | 'skip' | 'fail';
+
+export interface CheckStep {
+  id: string;
+  label: string;
+  status: StepStatus;
+  ms: number;
+  detail: string;
+  field?: ConfigField;
+}
+
+/** Response of GET /:token/check.json */
+export interface CheckResult {
+  ok: boolean;
+  provider: Provider;
+  channels: number;
+  groups: number;
+  programmes: number;
+  channelsWithGuide: number;
+  vodSkipped: number;
+  steps: CheckStep[];
+  error?: string;
 }

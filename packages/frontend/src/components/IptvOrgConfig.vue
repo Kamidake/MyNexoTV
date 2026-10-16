@@ -1,83 +1,92 @@
 <template>
-  <form class="config-form" autocomplete="off" @submit.prevent="handleSubmit">
-    <fieldset>
-      <legend>Channels</legend>
-
-
-      <div class="form-group">
-        <label>Country</label>
-        <div class="searchable-select" ref="countrySelectEl">
-          <div class="selected-tags">
-            <span v-for="item in selectedCountries" :key="item.value" class="tag">
-              {{ item.label.split(' (')[0].trim() }}
-              <span class="remove-tag" @mousedown.prevent.stop="removeCountry(item.value)">×</span>
-            </span>
+  <form class="config-form" autocomplete="off" novalidate @submit.prevent="handleSubmit">
+    <StepBlock :n="2" title="Channels" :done="true">
+      <div class="field-row">
+        <div class="field">
+          <label for="iptvCountry">Countries</label>
+          <div class="multi" :class="{ open: countryOpen }">
+            <input type="text" id="iptvCountry" class="multi-input" v-model="countrySearch"
+              :placeholder="selectedCountries.length ? 'Add a country' : 'All countries'" autocomplete="off"
+              role="combobox" :aria-expanded="countryOpen" aria-controls="iptvCountry-list"
+              @focus="countryOpen = true" @blur="onCountryBlur" @input="countryOpen = true"
+              @keydown="onCountryKeydown">
+            <ul v-show="countryOpen" id="iptvCountry-list" class="multi-list" role="listbox">
+              <li v-if="filteredCountries.length === 0" class="multi-empty">No match</li>
+              <li v-for="(item, i) in filteredCountries" :key="item.value" role="option"
+                :class="{ highlighted: countryHighlight === i }" :aria-selected="countryHighlight === i"
+                @mousedown.prevent="selectCountry(item)">
+                {{ item.label }}
+              </li>
+            </ul>
+            <div v-if="selectedCountries.length" class="multi-tags">
+              <span v-for="item in selectedCountries" :key="item.value" class="tag">
+                {{ item.label.split(' (')[0].trim() }}
+                <button type="button" class="tag-remove" :aria-label="`Remove ${item.label}`" @mousedown.prevent.stop="removeCountry(item.value)">×</button>
+              </span>
+            </div>
           </div>
-          <input type="text" class="searchable-select-input" v-model="countrySearch"
-            placeholder="All countries" autocomplete="off"
-            @focus="countryOpen = true" @blur="onCountryBlur" @input="countryOpen = true"
-            @keydown="onCountryKeydown">
-          <ul v-show="countryOpen" class="searchable-select-dropdown" ref="countryListEl">
-            <li v-if="filteredCountries.length === 0" class="ss-no-results">No results</li>
-            <li v-for="(item, i) in filteredCountries" :key="item.value"
-              :class="{ highlighted: countryHighlight === i }"
-              @mousedown.prevent="selectCountry(item)">
-              {{ item.label }}
-            </li>
-          </ul>
+        </div>
+        <div class="field">
+          <label for="iptvCategory">Categories</label>
+          <div class="multi" :class="{ open: categoryOpen }">
+            <input type="text" id="iptvCategory" class="multi-input" v-model="categorySearch"
+              :placeholder="selectedCategories.length ? 'Add a category' : 'All categories'" autocomplete="off"
+              role="combobox" :aria-expanded="categoryOpen" aria-controls="iptvCategory-list"
+              @focus="categoryOpen = true" @blur="onCategoryBlur" @input="categoryOpen = true"
+              @keydown="onCategoryKeydown">
+            <ul v-show="categoryOpen" id="iptvCategory-list" class="multi-list" role="listbox">
+              <li v-if="filteredCategories.length === 0" class="multi-empty">No match</li>
+              <li v-for="(item, i) in filteredCategories" :key="item.value" role="option"
+                :class="{ highlighted: categoryHighlight === i }" :aria-selected="categoryHighlight === i"
+                @mousedown.prevent="selectCategory(item)">
+                {{ item.label }}
+              </li>
+            </ul>
+            <div v-if="selectedCategories.length" class="multi-tags">
+              <span v-for="item in selectedCategories" :key="item.value" class="tag">
+                {{ item.label }}
+                <button type="button" class="tag-remove" :aria-label="`Remove ${item.label}`" @mousedown.prevent.stop="removeCategory(item.value)">×</button>
+              </span>
+            </div>
+          </div>
         </div>
       </div>
+      <p v-if="listError" class="field-error">{{ listError }}</p>
+    </StepBlock>
 
-      <div class="form-group">
-        <label>Category</label>
-        <div class="searchable-select" ref="categorySelectEl">
-          <div class="selected-tags">
-            <span v-for="item in selectedCategories" :key="item.value" class="tag">
-              {{ item.label }}
-              <span class="remove-tag" @mousedown.prevent.stop="removeCategory(item.value)">×</span>
-            </span>
-          </div>
-          <input type="text" class="searchable-select-input" v-model="categorySearch"
-            placeholder="All categories" autocomplete="off"
-            @focus="categoryOpen = true" @blur="onCategoryBlur" @input="categoryOpen = true"
-            @keydown="onCategoryKeydown">
-          <ul v-show="categoryOpen" class="searchable-select-dropdown" ref="categoryListEl">
-            <li v-if="filteredCategories.length === 0" class="ss-no-results">No results</li>
-            <li v-for="(item, i) in filteredCategories" :key="item.value"
-              :class="{ highlighted: categoryHighlight === i }"
-              @mousedown.prevent="selectCategory(item)">
-              {{ item.label }}
-            </li>
-          </ul>
+    <StepBlock :n="3" title="Options" :done="check.state.phase === 'passed'">
+      <AdvancedPanel id="iptv-advanced" v-model:open="advancedOpen">
+        <div class="field">
+          <label for="iptvCatalogName">Catalog name</label>
+          <input type="text" id="iptvCatalogName" v-model="catalogName" :placeholder="addonName">
         </div>
-      </div>
-    </fieldset>
-
-    <fieldset>
-      <legend>Display</legend>
-      <div class="form-group">
-        <label for="iptvCatalogName">Catalog name</label>
-        <input type="text" id="iptvCatalogName" v-model="catalogName"
-          placeholder="NexoTV">
-        <small class="hint">Shown in Stremio's channel list.</small>
-      </div>
-    </fieldset>
+      </AdvancedPanel>
+    </StepBlock>
 
     <div class="form-actions">
-      <button type="submit" class="btn primary" id="iptv-org-submit">
-        Install addon
+      <button type="submit" class="btn btn-primary" id="iptv-org-submit" :disabled="check.state.phase === 'running'">
+        {{ check.state.phase === 'running' ? 'Checking…' : 'Check and install' }}
       </button>
+      <button type="button" class="btn" @click="resetForm">Reset</button>
     </div>
   </form>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, inject } from 'vue'
+import { ref, computed, onMounted } from 'vue'
+import StepBlock from './StepBlock.vue'
+import AdvancedPanel from './AdvancedPanel.vue'
 import { useDecodedToken } from '../composables/useDecodedToken'
+import { useAddonInfo } from '../composables/useAddonInfo'
+import { useSourceCheck } from '../composables/useSourceCheck'
 import type { IptvOrgConfig } from '../types/config'
 
-const oc = inject<any>('overlayControl')!
+const check = useSourceCheck()
+const { info: addonInfo } = useAddonInfo()
+const addonName = computed(() => addonInfo.value?.name ?? 'NexoTV')
 const catalogName = ref('')
+const advancedOpen = ref(false)
+const listError = ref('')
 
 const IPTV_ORG_BASE = 'https://iptv-org.github.io/api'
 
@@ -212,46 +221,34 @@ onMounted(async () => {
           .map(cat => allCategories.value.find(c => c.value === cat))
           .filter(Boolean) as SelectItem[]
       }
-      catalogName.value = (decodedConfig as any).catalogName || ''
+      catalogName.value = decodedConfig.catalogName || ''
+      advancedOpen.value = !!catalogName.value
     }
   } catch (err) {
     console.error('[IPTV-ORG] Failed to load countries/categories', err)
+    listError.value = 'Cannot load the country and category lists from iptv-org. The install still works with all channels.'
   }
 })
 
 async function handleSubmit() {
   const country = selectedCountries.value.map(c => c.value).join(',') || null
   const category = selectedCategories.value.map(c => c.value).join(',') || null
-
-  oc.showOverlay(true)
-  oc.setProgress(5, 'Starting')
-  oc.appendDetail('== PRE-FLIGHT (IPTV-ORG) ==')
-  oc.appendDetail(`Country filter: ${country || '(all)'}`)
-  oc.appendDetail(`Category filter: ${category || '(all)'}`)
-  oc.appendDetail('Note: channel data will be fetched & cached on first access (may take a few seconds).')
-
-  try {
-    const config: IptvOrgConfig & { catalogName?: string } = {
-      provider: 'iptv-org',
-      iptvOrgCountry: country,
-      iptvOrgCategory: category,
-      ...(catalogName.value.trim() ? { catalogName: catalogName.value.trim() } : {}),
-    }
-
-    oc.setProgress(40, 'Building token')
-    const { manifestUrl, stremioUrl } = await oc.buildUrls(config)
-    oc.appendDetail('✔ Token built')
-    oc.appendDetail('Manifest URL: ' + manifestUrl)
-
-    oc.setProgress(70, 'Waiting for manifest')
-    oc.appendDetail('== SERVER BUILD PHASE ==')
-    oc.appendDetail('Polling server…')
-    oc.startPolling(manifestUrl, stremioUrl, 70)
-  } catch (err: any) {
-    oc.setProgress(100, 'Configuration failed')
-    oc.appendDetail('✖ Error: ' + (err.message || String(err)))
-    oc.appendDetail('Close overlay and try again.')
-    oc.markError()
+  const config: IptvOrgConfig & { catalogName?: string } = {
+    provider: 'iptv-org',
+    iptvOrgCountry: country,
+    iptvOrgCategory: category,
+    ...(catalogName.value.trim() ? { catalogName: catalogName.value.trim() } : {}),
   }
+  await check.run(config)
+}
+
+function resetForm() {
+  selectedCountries.value = []
+  selectedCategories.value = []
+  countrySearch.value = ''
+  categorySearch.value = ''
+  catalogName.value = ''
+  advancedOpen.value = false
+  check.reset()
 }
 </script>

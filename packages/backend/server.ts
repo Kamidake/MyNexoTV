@@ -78,7 +78,7 @@ app.use((error: any, req: any, res: any, next: any) => {
 });
 
 app.listen(env.PORT, () => {
-    console.log(`🚀 Server running → http://localhost:${env.PORT} (debug=${env.DEBUG}, prefetch=${env.PREFETCH_ENABLED})`);
+    console.log(`🚀 Server running → http://localhost:${env.PORT} (debug=${env.DEBUG})`);
 
     if (env.CACHE_ENABLED) {
         const GC_INTERVAL_MS = env.SQLITE_GC_INTERVAL_MS;

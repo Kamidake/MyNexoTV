@@ -1,33 +1,22 @@
 <template>
-  <header class="ident">
-    <div class="color-bars" aria-hidden="true">
-      <span></span><span></span><span></span><span></span><span></span><span></span><span></span>
-    </div>
-    <div v-if="loading" class="ident-skeleton">
-      <div class="skeleton-icon"></div>
-      <div class="skeleton-lines">
-        <div class="skeleton-line w-48"></div>
-        <div class="skeleton-line w-32"></div>
-      </div>
-    </div>
-    <div v-else class="ident-content">
-      <img
-        v-if="info?.logoUrl"
-        :src="info.logoUrl"
-        class="addon-logo"
-        alt=""
-        @error="(e) => (e.target as HTMLImageElement).style.display = 'none'"
-      >
-      <div class="ident-text">
-        <h1 class="app-title">{{ info?.name }}</h1>
-        <p v-if="info?.description" class="subtitle">{{ info.description }}</p>
-      </div>
-    </div>
+  <header class="topbar">
+    <a class="brand" href="/configure">
+      <svg width="26" height="26" viewBox="0 0 48 48" aria-hidden="true"><rect x="1" y="1" width="46" height="46" rx="11" fill="#1f1f1f" stroke="#2e2e2e"/><path d="M15 34V14l18 20V14" fill="none" stroke="#3ecf8e" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span class="brand-name">{{ info?.name || 'NexoTV' }}</span>
+    </a>
+    <span class="crumb-sep" aria-hidden="true">/</span>
+    <span class="crumb">{{ reconfigure ? 'Edit install' : 'New install' }}</span>
+    <span class="topbar-gap"></span>
+    <nav class="topbar-links" aria-label="Project">
+      <a href="https://github.com/joaosavi/nexotv#readme" target="_blank" rel="noopener">Docs</a>
+      <a href="https://github.com/joaosavi/nexotv" target="_blank" rel="noopener">GitHub</a>
+    </nav>
   </header>
 </template>
 
 <script setup lang="ts">
 import { useAddonInfo } from '../composables/useAddonInfo'
 
-const { info, loading } = useAddonInfo()
+defineProps<{ reconfigure: boolean }>()
+const { info } = useAddonInfo()
 </script>

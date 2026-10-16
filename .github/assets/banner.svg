@@ -1,63 +1,19 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 420" width="1280" height="420">
 <title>NexoTV</title>
-<defs><linearGradient id="fade" x1="0" x2="1"><stop offset="0" stop-color="#120f24"/><stop offset="0.55" stop-color="#120f24" stop-opacity="0.85"/><stop offset="1" stop-color="#120f24" stop-opacity="0"/></linearGradient></defs>
-<rect width="1280" height="420" fill="#120f24"/>
-<rect x="560" y="52" width="142" height="40" rx="7" fill="#1d1937"/>
-<rect x="710" y="52" width="112" height="40" rx="7" fill="#1d1937"/>
-<rect x="830" y="52" width="172" height="40" rx="7" fill="#2a2450"/>
-<rect x="830" y="52" width="4" height="40" rx="2" fill="#ffb547"/>
-<rect x="1010" y="52" width="252" height="40" rx="7" fill="#1d1937"/>
-<rect x="1270" y="52" width="82" height="40" rx="7" fill="#1d1937"/>
-<rect x="560" y="100" width="82" height="40" rx="7" fill="#1d1937"/>
-<rect x="650" y="100" width="202" height="40" rx="7" fill="#1d1937"/>
-<rect x="860" y="100" width="82" height="40" rx="7" fill="#2a2450"/>
-<rect x="860" y="100" width="4" height="40" rx="2" fill="#ffb547"/>
-<rect x="950" y="100" width="142" height="40" rx="7" fill="#1d1937"/>
-<rect x="1100" y="100" width="202" height="40" rx="7" fill="#1d1937"/>
-<rect x="1310" y="100" width="82" height="40" rx="7" fill="#1d1937"/>
-<rect x="560" y="148" width="202" height="40" rx="7" fill="#1d1937"/>
-<rect x="770" y="148" width="112" height="40" rx="7" fill="#2a2450"/>
-<rect x="770" y="148" width="4" height="40" rx="2" fill="#ffb547"/>
-<rect x="890" y="148" width="82" height="40" rx="7" fill="#1d1937"/>
-<rect x="980" y="148" width="82" height="40" rx="7" fill="#1d1937"/>
-<rect x="1070" y="148" width="172" height="40" rx="7" fill="#1d1937"/>
-<rect x="1250" y="148" width="172" height="40" rx="7" fill="#1d1937"/>
-<rect x="560" y="196" width="82" height="40" rx="7" fill="#1d1937"/>
-<rect x="650" y="196" width="112" height="40" rx="7" fill="#1d1937"/>
-<rect x="770" y="196" width="82" height="40" rx="7" fill="#1d1937"/>
-<rect x="860" y="196" width="202" height="40" rx="7" fill="#2a2450"/>
-<rect x="860" y="196" width="4" height="40" rx="2" fill="#ffb547"/>
-<rect x="1070" y="196" width="172" height="40" rx="7" fill="#1d1937"/>
-<rect x="1250" y="196" width="82" height="40" rx="7" fill="#1d1937"/>
-<rect x="560" y="244" width="202" height="40" rx="7" fill="#1d1937"/>
-<rect x="770" y="244" width="82" height="40" rx="7" fill="#1d1937"/>
-<rect x="860" y="244" width="112" height="40" rx="7" fill="#2a2450"/>
-<rect x="860" y="244" width="4" height="40" rx="2" fill="#ffb547"/>
-<rect x="980" y="244" width="252" height="40" rx="7" fill="#1d1937"/>
-<rect x="1240" y="244" width="252" height="40" rx="7" fill="#1d1937"/>
-<rect x="560" y="292" width="202" height="40" rx="7" fill="#1d1937"/>
-<rect x="770" y="292" width="82" height="40" rx="7" fill="#1d1937"/>
-<rect x="860" y="292" width="202" height="40" rx="7" fill="#2a2450"/>
-<rect x="860" y="292" width="4" height="40" rx="2" fill="#ffb547"/>
-<rect x="1070" y="292" width="202" height="40" rx="7" fill="#1d1937"/>
-<rect x="1280" y="292" width="172" height="40" rx="7" fill="#1d1937"/>
-<rect x="560" y="340" width="82" height="40" rx="7" fill="#1d1937"/>
-<rect x="650" y="340" width="112" height="40" rx="7" fill="#1d1937"/>
-<rect x="770" y="340" width="82" height="40" rx="7" fill="#1d1937"/>
-<rect x="860" y="340" width="202" height="40" rx="7" fill="#2a2450"/>
-<rect x="860" y="340" width="4" height="40" rx="2" fill="#ffb547"/>
-<rect x="1070" y="340" width="112" height="40" rx="7" fill="#1d1937"/>
-<rect x="1190" y="340" width="142" height="40" rx="7" fill="#1d1937"/>
-<rect x="540" y="0" width="420" height="420" fill="url(#fade)"/>
-<rect x="879" y="34" width="2" height="354" fill="#ff5b4f"/><circle cx="880" cy="34" r="6" fill="#ff5b4f"/>
-<rect x="0.00" y="0" width="183.36" height="10" fill="#e9e6f5"/>
-<rect x="182.86" y="0" width="183.36" height="10" fill="#ffd23f"/>
-<rect x="365.71" y="0" width="183.36" height="10" fill="#3fd0c9"/>
-<rect x="548.57" y="0" width="183.36" height="10" fill="#5fd068"/>
-<rect x="731.43" y="0" width="183.36" height="10" fill="#c566e0"/>
-<rect x="914.29" y="0" width="183.36" height="10" fill="#ff5b4f"/>
-<rect x="1097.14" y="0" width="183.36" height="10" fill="#4d6bff"/>
-<g transform="translate(72 64) scale(0.21875)"><clipPath id="lr"><rect width="512" height="512" rx="112"/></clipPath><clipPath id="lm"><rect x="120" y="104" width="272" height="272" rx="18"/></clipPath><g clip-path="url(#lr)"><rect width="512" height="512" fill="#2a2450"/><rect x="0" y="452" width="74" height="60" fill="#e9e6f5"/><rect x="73" y="452" width="74" height="60" fill="#ffd23f"/><rect x="146" y="452" width="74" height="60" fill="#3fd0c9"/><rect x="219" y="452" width="74" height="60" fill="#5fd068"/><rect x="292" y="452" width="74" height="60" fill="#c566e0"/><rect x="365" y="452" width="74" height="60" fill="#ff5b4f"/><rect x="438" y="452" width="74" height="60" fill="#4d6bff"/></g><polygon points="120,104 188,104 392,376 324,376" fill="#ffb547" clip-path="url(#lm)"/><rect x="120" y="104" width="68" height="272" rx="18" fill="#f1eefa"/><rect x="324" y="104" width="68" height="272" rx="18" fill="#f1eefa"/><circle cx="436" cy="76" r="24" fill="#ff5b4f"/></g>
-<text x="66" y="304" fill="#f1eefa" font-family="Archivo, Arial Black, sans-serif" font-weight="800" font-size="112" letter-spacing="-2" style="font-variation-settings: 'wdth' 125; font-stretch: 125%">NexoTV</text>
-<text x="72" y="358" fill="#b0a9cc" font-family="Archivo, Arial, sans-serif" font-weight="500" font-size="28">Live TV from Xtream, M3U and IPTV-org, inside Stremio</text>
+<rect width="1280" height="420" fill="#171717"/>
+<g transform="translate(80 120)">
+<rect x="1" y="1" width="78" height="78" rx="18" fill="#1f1f1f" stroke="#2e2e2e" stroke-width="1.6"/>
+<path d="M25.5 57.8V23.8l30.6 34V23.8" fill="none" stroke="#3ecf8e" stroke-width="6.8" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+<text x="80" y="268" fill="#ededed" font-family="IBM Plex Sans, sans-serif" font-size="64" font-weight="600" letter-spacing="-1">NexoTV</text>
+<text x="82" y="312" fill="#a0a0a0" font-family="IBM Plex Sans, sans-serif" font-size="22">Your IPTV channels and program guide in Stremio</text>
+<rect x="640" y="56" width="580" height="308" rx="12" fill="#121212" stroke="#2e2e2e"/>
+<g font-family="IBM Plex Mono, monospace" font-size="13">
+<text x="676" y="102" fill="#ededed" font-family="IBM Plex Sans, sans-serif" font-size="16" font-weight="600">Source check</text>
+<rect x="1094" y="84" width="96" height="24" rx="12" fill="#3ecf8e" fill-opacity="0.12" stroke="#3ecf8e" stroke-opacity="0.3"/>
+<text x="1142" y="101" fill="#3ecf8e" text-anchor="middle">PASSED</text>
+<text x="676" y="150" fill="#666">09:12:01</text><text x="770" y="150" fill="#3ecf8e">OK</text><text x="822" y="150" fill="#ededed">Panel reachable</text><text x="822" y="150" dx="129" fill="#777">panel.example.com</text><text x="676" y="184" fill="#666">09:12:01</text><text x="770" y="184" fill="#3ecf8e">OK</text><text x="822" y="184" fill="#ededed">Login accepted</text><text x="822" y="184" dx="121" fill="#777"></text><text x="676" y="218" fill="#666">09:12:03</text><text x="770" y="218" fill="#3ecf8e">OK</text><text x="822" y="218" fill="#ededed">Live streams</text><text x="822" y="218" dx="106" fill="#777">1,284 in 32 groups</text><text x="676" y="252" fill="#666">09:12:03</text><text x="770" y="252" fill="#f5a524">SKIP</text><text x="822" y="252" fill="#ededed">Movies and series</text><text x="822" y="252" dx="145" fill="#777">412 entries, not live</text><text x="676" y="286" fill="#666">09:12:07</text><text x="770" y="286" fill="#3ecf8e">OK</text><text x="822" y="286" fill="#ededed">Program guide</text><text x="822" y="286" dx="113" fill="#777">1,102 of 1,284 channels matched</text>
+<rect x="676" y="314" width="508" height="1" fill="#262626"/>
+<g font-family="IBM Plex Sans, sans-serif" font-size="14"><text x="676" y="342" fill="#a0a0a0">Channels <tspan fill="#ededed" font-weight="600">1,284</tspan></text><text x="826" y="342" fill="#a0a0a0">Groups <tspan fill="#ededed" font-weight="600">32</tspan></text><text x="946" y="342" fill="#a0a0a0">Programmes <tspan fill="#ededed" font-weight="600">18,402</tspan></text></g>
+</g>
 </svg>

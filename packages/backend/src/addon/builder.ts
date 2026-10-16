@@ -2,7 +2,7 @@ import env from '../config/env';
 import { addonBuilder } from 'stremio-addon-sdk';
 import crypto from 'crypto';
 import { createManifest } from './manifest';
-import { M3UEPGAddon, createCacheKey, buildPromiseCache, CACHE_ENABLED, isNativeEpg } from './M3UEPGAddon';
+import { M3UEPGAddon, createCacheKey, createStorageKey, buildPromiseCache, CACHE_ENABLED, isNativeEpg } from './M3UEPGAddon';
 import { AddonConfig } from './M3UEPGAddon';
 
 async function createAddon(config: AddonConfig) {
@@ -19,9 +19,11 @@ async function createAddon(config: AddonConfig) {
         console.log(`[ADDON] Cache ${CACHE_ENABLED ? 'ENABLED' : 'DISABLED'} for config ${cacheKey}`);
     }
 
-    if (CACHE_ENABLED && buildPromiseCache.has(cacheKey)) {
+    const buildKey = createStorageKey(config, cacheKey);
+
+    if (CACHE_ENABLED && buildPromiseCache.has(buildKey)) {
         if (debugFlag) console.log('[DEBUG] Reusing build promise', cacheKey);
-        return buildPromiseCache.get(cacheKey);
+        return buildPromiseCache.get(buildKey);
     }
 
     const buildPromise = (async () => {
@@ -122,7 +124,7 @@ async function createAddon(config: AddonConfig) {
         return iface;
     })();
 
-    if (CACHE_ENABLED) buildPromiseCache.set(cacheKey, buildPromise);
+    if (CACHE_ENABLED) buildPromiseCache.set(buildKey, buildPromise);
     try {
         const iface = await buildPromise;
         return iface;
