@@ -88,11 +88,23 @@ export function createCacheKey(config: AddonConfig) {
     return crypto.createHash('md5').update(stableStringify(minimal)).digest('hex');
 }
 
+/**
+ * Key for builds and stored data. The cache key leaves the Xtream password out so
+ * channel ids survive a password change, but data fetched with one password holds
+ * stream URLs with that password, so it must never be served to another one.
+ */
+export function createStorageKey(config: AddonConfig, cacheKey = createCacheKey(config)) {
+    if ((config.provider || 'xtream') !== 'xtream') return cacheKey;
+    const secret = crypto.createHash('sha256').update(String(config.xtreamPassword ?? '')).digest('hex').slice(0, 16);
+    return `${cacheKey}:${secret}`;
+}
+
 export class M3UEPGAddon {
     providerName: string;
     config: AddonConfig;
     manifestRef: any;
     cacheKey: string;
+    storageKey: string;
     idPrefix: string;
     updateInterval: number;
     channels: any[];
@@ -126,6 +138,7 @@ export class M3UEPGAddon {
         this.config = config;
         this.manifestRef = manifestRef;
         this.cacheKey = createCacheKey(config);
+        this.storageKey = createStorageKey(config, this.cacheKey);
         this.idPrefix = this.cacheKey.slice(0, 8);
         this.updateInterval = env.UPDATE_INTERVAL_MS;
         this.channels = [];
@@ -172,7 +185,7 @@ export class M3UEPGAddon {
 
     async saveChannelsToCache() {
         if (!CACHE_ENABLED) return;
-        sqliteCache.setRaw('addon:channels:' + this.cacheKey, {
+        sqliteCache.setRaw('addon:channels:' + this.storageKey, {
             channels: this.channels,
             lastUpdate: this.lastUpdate,
             m3uEtag: this.m3uEtag ?? null,
@@ -186,7 +199,7 @@ export class M3UEPGAddon {
 
     async loadChannelsFromCache() {
         if (!CACHE_ENABLED) return;
-        const cached = sqliteCache.getRaw('addon:channels:' + this.cacheKey);
+        const cached = sqliteCache.getRaw('addon:channels:' + this.storageKey);
         if (cached) {
             this.channels = cached.channels || [];
             this.channelMap = new Map(this.channels.map(c => [c.id, c]));
@@ -201,7 +214,7 @@ export class M3UEPGAddon {
     }
 
     epgCacheKey() {
-        return 'addon:epg:' + this.cacheKey + (this.nativeEpg ? ':native' : '');
+        return 'addon:epg:' + this.storageKey + (this.nativeEpg ? ':native' : '');
     }
 
     async saveEpgToCache() {
@@ -345,7 +358,7 @@ export class M3UEPGAddon {
             this.iptvOrgEtag = null;
             this.xtreamEtag = null;
             if (CACHE_ENABLED) {
-                sqliteCache.del('addon:channels:' + this.cacheKey);
+                sqliteCache.del('addon:channels:' + this.storageKey);
                 sqliteCache.del(this.epgCacheKey());
             }
             await this.updateData(true);

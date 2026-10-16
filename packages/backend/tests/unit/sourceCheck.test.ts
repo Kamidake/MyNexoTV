@@ -8,7 +8,7 @@ import {
     SourceReport, SourceError, computeStats, describeFetchError, describeHttpStatus, hostOf,
 } from '../../src/addon/sourceReport';
 import { runCheck } from '../../src/addon/check';
-import type { M3UEPGAddon } from '../../src/addon/M3UEPGAddon';
+import { createCacheKey, createStorageKey, type M3UEPGAddon } from '../../src/addon/M3UEPGAddon';
 
 const URL_ = 'http://panel.example.com:8080/get.php?username=u&password=p';
 
@@ -144,5 +144,20 @@ describe('runCheck', () => {
         expect(addon.updateData).not.toHaveBeenCalled();
         expect(result).toMatchObject({ ok: false, error: 'Bad login' });
         expect(result.steps[0].field).toBe('xtreamPassword');
+    });
+});
+
+describe('createStorageKey', () => {
+    const xtream = (xtreamPassword: string) => ({ provider: 'xtream', xtreamUrl: 'http://p', xtreamUsername: 'u', xtreamPassword });
+
+    it('keeps one cache key but separate stored data for two Xtream passwords', () => {
+        expect(createCacheKey(xtream('a'))).toBe(createCacheKey(xtream('b')));
+        expect(createStorageKey(xtream('a'))).not.toBe(createStorageKey(xtream('b')));
+        expect(createStorageKey(xtream('a'))).not.toContain(':a');
+    });
+
+    it('is the cache key for providers without a password', () => {
+        const m3u = { provider: 'm3u', m3uUrl: 'http://p/list.m3u' };
+        expect(createStorageKey(m3u)).toBe(createCacheKey(m3u));
     });
 });
