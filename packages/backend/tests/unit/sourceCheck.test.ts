@@ -136,7 +136,7 @@ describe('runCheck', () => {
 
     it('reports a fresh failure without fetching again', async () => {
         const report = new SourceReport();
-        report.fail('login', 'Login accepted', Date.now(), 'Bad login', 'xtreamPassword');
+        report.fail('login', 'Panel login', Date.now(), 'Bad login', 'xtreamPassword');
         report.finishedAt = Date.now();
         const addon = fakeAddon({ lastReport: report });
 

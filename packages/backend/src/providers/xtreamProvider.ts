@@ -25,7 +25,7 @@ export async function fetchData(addonInstance: any) {
     const started = Date.now();
     if (!xtreamUrl || !xtreamUsername || !xtreamPassword) {
         const field = !xtreamUrl ? 'xtreamUrl' : !xtreamUsername ? 'xtreamUsername' : 'xtreamPassword';
-        throw report.failWith('server', 'Panel reachable', started, 'Enter the server URL, username and password.', field);
+        throw report.failWith('server', 'Panel connection', started, 'Enter the server URL, username and password.', field);
     }
     const host = hostOf(xtreamUrl);
 
@@ -43,20 +43,20 @@ export async function fetchData(addonInstance: any) {
             withTimeout(`${base}&action=get_live_categories`, {}, env.FETCH_TIMEOUT_MS).catch(() => null)
         ]);
     } catch (e) {
-        throw report.failWith('server', 'Panel reachable', started,
+        throw report.failWith('server', 'Panel connection', started,
             describeFetchError(e, xtreamUrl, env.FETCH_TIMEOUT_MS), 'xtreamUrl');
     }
-    report.ok('server', 'Panel reachable', started, host);
+    report.ok('server', 'Panel connection', started, host);
 
     const loginStarted = Date.now();
     if (liveResp.status === 304) {
         addonInstance.log?.debug('Xtream 304 Not Modified — skipping update');
-        report.ok('login', 'Login accepted', loginStarted, 'Channel list not changed since the last download');
+        report.ok('login', 'Panel login', loginStarted, 'Channel list not changed since the last download');
         return;
     }
     if (!liveResp.ok) {
         const field = liveResp.status === 401 || liveResp.status === 403 ? 'xtreamPassword' : 'xtreamUrl';
-        throw report.failWith('login', 'Login accepted', loginStarted,
+        throw report.failWith('login', 'Panel login', loginStarted,
             describeHttpStatus(liveResp.status, host, 'Xtream API'), field);
     }
 
@@ -64,15 +64,15 @@ export async function fetchData(addonInstance: any) {
     try {
         live = await liveResp.json();
     } catch {
-        throw report.failWith('login', 'Login accepted', loginStarted,
+        throw report.failWith('login', 'Panel login', loginStarted,
             `${host} did not answer as an Xtream Codes panel. Check the server URL.`, 'xtreamUrl');
     }
     // Panels answer a bad login with HTTP 200 and an object such as {"user_info":{"auth":0}}
     if (!Array.isArray(live)) {
-        throw report.failWith('login', 'Login accepted', loginStarted,
+        throw report.failWith('login', 'Panel login', loginStarted,
             `${host} did not accept the username and password.`, 'xtreamPassword');
     }
-    report.ok('login', 'Login accepted', loginStarted);
+    report.ok('login', 'Panel login', loginStarted);
 
     addonInstance.xtreamEtag = liveResp.headers.get('etag') ?? null;
 
