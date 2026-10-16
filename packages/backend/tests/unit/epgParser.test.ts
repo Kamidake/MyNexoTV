@@ -1,5 +1,8 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
+import zlib from 'zlib';
+import env from '../../src/config/env';
 import {
+  decodeEPGBody,
   parseEPG,
   parseEPGTime,
   getCurrentProgram,
@@ -182,5 +185,33 @@ describe('getUpcomingPrograms', () => {
     expect(upcoming1.length).toBeLessThanOrEqual(1);
     expect(upcoming2.length).toBeLessThanOrEqual(2);
     expect(upcoming2.length).toBeGreaterThanOrEqual(upcoming1.length);
+  });
+});
+
+// ─── decodeEPGBody ───────────────────────────────────────────────────────────
+
+describe('decodeEPGBody', () => {
+  it('returns plain XMLTV unchanged', () => {
+    expect(decodeEPGBody(Buffer.from(SAMPLE_XMLTV))).toBe(SAMPLE_XMLTV);
+  });
+
+  it('decompresses gzip served without Content-Encoding (m3u4u)', async () => {
+    const decoded = decodeEPGBody(zlib.gzipSync(SAMPLE_XMLTV));
+    expect(decoded).toBe(SAMPLE_XMLTV);
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-03-19T10:00:00Z'));
+    const epgData = await parseEPG(decoded);
+    expect(epgData['cnn.us'].length).toBeGreaterThan(0);
+  });
+
+  it('refuses gzip that inflates past EPG_MAX_BYTES', () => {
+    const original = env.EPG_MAX_BYTES;
+    env.EPG_MAX_BYTES = 1024;
+    try {
+      const bomb = zlib.gzipSync(Buffer.alloc(64 * 1024, 'a'));
+      expect(() => decodeEPGBody(bomb)).toThrow();
+    } finally {
+      env.EPG_MAX_BYTES = original;
+    }
   });
 });
