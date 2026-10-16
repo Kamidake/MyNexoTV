@@ -2,6 +2,11 @@ import { computed, reactive, readonly } from 'vue'
 import { buildAddonUrls } from './useConfigToken'
 import type { AddonConfig, CheckResult, CheckStep } from '../types/config'
 
+const GATEWAY_STATUSES = new Set([502, 503, 504])
+const CHECK_RETRY_DELAY_MS = 10_000
+// At most 21 requests: fits BeamUp's 25 per link per 10 minutes
+const CHECK_RETRY_WINDOW_MS = 210_000
+
 export type RowStatus = CheckStep['status'] | 'run'
 
 export interface LogRow {
@@ -73,14 +78,28 @@ async function run(config: AddonConfig): Promise<CheckResult | null> {
   const sourceStarted = Date.now()
   replaceRow('source', { at: sourceStarted, status: 'run', label: 'Checking the source', detail: '' })
 
-  let res: Response
-  try {
-    res = await fetch(`${urls.backendOrigin}/${urls.token}/check.json`, { cache: 'no-store' })
-  } catch {
-    if (id === runId) failRow('source', 'NexoTV server', 'Cannot reach the NexoTV server. Check your connection and try again.')
+  // A proxy in front of the server (BeamUp's, for one) can cut a long check with
+  // 502/503/504 while the server keeps building. The build is shared and cached,
+  // so asking again picks up the same work instead of starting over.
+  const deadline = sourceStarted + CHECK_RETRY_WINDOW_MS
+  let res: Response | null = null
+  while (true) {
+    try {
+      res = await fetch(`${urls.backendOrigin}/${urls.token}/check.json`, { cache: 'no-store' })
+    } catch {
+      res = null
+    }
+    if (id !== runId) return null
+    const retryable = res === null || GATEWAY_STATUSES.has(res.status)
+    if (!retryable || Date.now() >= deadline) break
+    replaceRow('source', { at: sourceStarted, status: 'run', label: 'Checking the source', detail: 'Large playlist, still downloading' })
+    await new Promise(resolve => setTimeout(resolve, CHECK_RETRY_DELAY_MS))
+    if (id !== runId) return null
+  }
+  if (res === null) {
+    failRow('source', 'NexoTV server', 'Cannot reach the NexoTV server. Check your connection and try again.')
     return null
   }
-  if (id !== runId) return null
   if (res.status === 429) {
     failRow('source', 'Rate limit', 'Too many checks with these settings. Wait a minute and try again.')
     return null
