@@ -1,8 +1,11 @@
 import { Router } from 'express';
+import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
 import env from '../config/env';
 import { encryptConfig } from '../utils/cryptoConfig';
+import * as sqliteCache from '../utils/sqliteCache';
+import { buildPromiseCache } from '../addon/M3UEPGAddon';
 
 const router = Router();
 
@@ -49,6 +52,35 @@ router.get('/api/public-playlists', (req, res) => {
         res.json(playlists);
     } catch {
         res.json([]);
+    }
+});
+
+
+function safeEqual(a: string, b: string) {
+    const ha = crypto.createHash('sha256').update(a).digest();
+    const hb = crypto.createHash('sha256').update(b).digest();
+    return crypto.timingSafeEqual(ha, hb);
+}
+
+router.post('/api/admin/clear-cache', (req, res) => {
+    if (!env.ADMIN_SECRET) {
+        return res.status(404).json({ error: 'Not found' });
+    }
+    // Header only: a query string ends up in access logs
+    const secret = req.headers['x-admin-secret'];
+    if (typeof secret !== 'string' || !safeEqual(secret, env.ADMIN_SECRET)) {
+        return res.status(403).json({ error: 'Forbidden' });
+    }
+    try {
+        // Evict all in-memory addon instances first so their timers are stopped
+        const lruSize = buildPromiseCache.getSize();
+        buildPromiseCache.evictLeastRecentlyUsed(lruSize);
+        // Clear and vacuum SQLite
+        const deleted = sqliteCache.cleanExpired();
+        sqliteCache.vacuum();
+        res.json({ ok: true, lruEvicted: lruSize, sqliteExpiredDeleted: deleted });
+    } catch (e: any) {
+        res.status(500).json({ error: e.message });
     }
 });
 

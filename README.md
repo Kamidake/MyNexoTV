@@ -170,6 +170,8 @@ All variables are optional. The defaults below are the values in [`packages/back
 | `SQLITE_PATH` | `data/cache.sqlite` in the repository root | SQLite file. In Docker this is `/app/data/cache.sqlite` |
 | `SQLITE_GC_INTERVAL_MS` | `21600000` | Interval between deletions of expired rows (6 h) |
 | `SQLITE_VACUUM_INTERVAL_MS` | `604800000` | Interval between `VACUUM` runs (7 days) |
+| `CLEAR_CACHE_ON_START` | `false` | Delete expired SQLite entries and run `VACUUM` once at startup |
+| `ADMIN_SECRET` | _(unset)_ | Enables `POST /api/admin/clear-cache` with header `x-admin-secret`. Unset, the route returns 404 |
 | `CACHE_TTL_MS` | `86400000` | Xtream data lifetime (24 h) |
 | `IPTV_ORG_CACHE_TTL_MS` | `86400000` | IPTV-org data lifetime (24 h) |
 | `M3U_CACHE_TTL_MS` | `86400000` | M3U data lifetime (24 h) |
