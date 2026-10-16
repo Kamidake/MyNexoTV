@@ -2,7 +2,7 @@ import env from '../config/env';
 import { addonBuilder } from 'stremio-addon-sdk';
 import crypto from 'crypto';
 import { createManifest } from './manifest';
-import { M3UEPGAddon, createCacheKey, buildPromiseCache, CACHE_ENABLED } from './M3UEPGAddon';
+import { M3UEPGAddon, createCacheKey, buildPromiseCache, CACHE_ENABLED, isNativeEpg } from './M3UEPGAddon';
 import { AddonConfig } from './M3UEPGAddon';
 
 async function createAddon(config: AddonConfig) {
@@ -11,7 +11,7 @@ async function createAddon(config: AddonConfig) {
 
     const cacheKey = createCacheKey(config);
     const idPrefix = cacheKey.slice(0, 8);
-    const manifest = createManifest(idPrefix, config.catalogName);
+    const manifest = createManifest(idPrefix, config.catalogName, isNativeEpg(config));
     const debugFlag = !!env.DEBUG;
     if (debugFlag) {
         console.log('[DEBUG] createAddon start', { cacheKey, provider: config.provider || 'xtream' });
@@ -65,6 +65,14 @@ async function createAddon(config: AddonConfig) {
                 }
                 const PAGE_SIZE = env.CATALOG_PAGE_SIZE;
                 const skip = parseInt(extra.skip || '0', 10) || 0;
+                // Native guide grid: Stremio pages until it gets an empty metasDetailed
+                if (extra.date && addonInstance.nativeEpg) {
+                    if (!/^\d{4}-\d{2}-\d{2}$/.test(extra.date)) return { metasDetailed: [] };
+                    await addonInstance.ensureEpgLoaded();
+                    const metasDetailed = items.slice(skip, skip + PAGE_SIZE)
+                        .map((i: any) => addonInstance.generateGuideMeta(i, extra.date));
+                    return { metasDetailed, cacheMaxAge: 300, staleRevalidate: 1800, staleError: 604800 };
+                }
                 const metas = items.slice(skip, skip + PAGE_SIZE).map((i: any) => addonInstance.generateMetaPreview(i));
                 if (env.DEBUG) {
                     console.log('[DEBUG] Catalog handler', {

@@ -215,3 +215,33 @@ describe('decodeEPGBody', () => {
     }
   });
 });
+
+// ─── parseEPG native window ──────────────────────────────────────────────────
+
+describe('parseEPG with nativeDays', () => {
+  const xml = (rows: string) => `<?xml version="1.0"?><tv>${rows}</tv>`;
+  const prog = (start: string, stop: string, title: string) =>
+    `<programme start="${start} +0000" stop="${stop} +0000" channel="a"><title>${title}</title></programme>`;
+  const many = Array.from({ length: 8 }, (_, i) => {
+    const h = String(12 + i).padStart(2, '0');
+    const h2 = String(13 + i).padStart(2, '0');
+    return prog(`20260319${h}0000`, `20260319${h2}0000`, `Show ${i}`);
+  }).join('');
+
+  it('keeps more than 5 future programmes', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-03-19T10:00:00Z'));
+    const short = await parseEPG(xml(many));
+    const full = await parseEPG(xml(many), undefined, { nativeDays: 2 });
+    expect(short.a.length).toBe(5);
+    expect(full.a.length).toBe(8);
+  });
+
+  it('drops programmes past the horizon', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-03-19T10:00:00Z'));
+    const rows = prog('20260319120000', '20260319130000', 'Soon') + prog('20260325120000', '20260325130000', 'Next week');
+    const full = await parseEPG(xml(rows), undefined, { nativeDays: 2 });
+    expect(full.a.map((p: any) => p.title)).toEqual(['Soon']);
+  });
+});

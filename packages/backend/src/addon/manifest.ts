@@ -1,6 +1,6 @@
 import env from '../config/env';
 
-export function createManifest(idPrefix?: string, catalogName?: string) {
+export function createManifest(idPrefix?: string, catalogName?: string, nativeEpg = false) {
     return {
         id: 'community.nexotv',
         version: '2.0.0',
@@ -16,7 +16,8 @@ export function createManifest(idPrefix?: string, catalogName?: string) {
                 extra: [
                     { name: 'genre', isRequired: false, options: [] },
                     { name: 'search', isRequired: false },
-                    { name: 'skip' }
+                    { name: 'skip' },
+                    ...(nativeEpg ? [{ name: 'date', isRequired: false }] : [])
                 ],
                 genres: []
             }
@@ -24,7 +25,8 @@ export function createManifest(idPrefix?: string, catalogName?: string) {
         idPrefixes: idPrefix ? [`xc${idPrefix}_`, `io${idPrefix}_`, `m3${idPrefix}_`] : ['xc', 'io', 'm3'],
         behaviorHints: {
             configurable: true,
-            configurationRequired: true
+            configurationRequired: true,
+            ...(nativeEpg ? { epgProvider: true } : {})
         },
         ...(env.ADDON_LOGO_URL ? { logo: env.ADDON_LOGO_URL } : {}),
         ...(env.ADDON_BACKGROUND_URL ? { background: env.ADDON_BACKGROUND_URL } : {}),

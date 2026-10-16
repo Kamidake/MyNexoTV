@@ -3,6 +3,11 @@ import zlib from 'zlib';
 import { makeLogger } from '../utils/logger';
 import env from '../config/env';
 
+export interface ParseEPGOptions {
+    /** Keep the full schedule from 24h ago to this many days ahead, for the native Stremio guide. */
+    nativeDays?: number;
+}
+
 /**
  * Decode an XMLTV payload to text. Some providers (e.g. m3u4u) serve a .gz file
  * without Content-Encoding, so fetch hands it back still compressed.
@@ -16,8 +21,9 @@ export function decodeEPGBody(buf: Buffer): string {
 
 /**
  * Parse XMLTV EPG content into a channel-keyed object.
+ * By default keeps the current programme and the next 5 per channel.
  */
-export async function parseEPG(content: string, log?: ReturnType<typeof makeLogger>) {
+export async function parseEPG(content: string, log?: ReturnType<typeof makeLogger>, options: ParseEPGOptions = {}) {
     if (Buffer.byteLength(content, 'utf8') > env.EPG_MAX_BYTES) {
         const sizeMb = (Buffer.byteLength(content, 'utf8') / 1024 / 1024).toFixed(1);
         if (log) log.warn(`[EPG] Content too large (${sizeMb} MB), skipping`);
@@ -30,8 +36,10 @@ export async function parseEPG(content: string, log?: ReturnType<typeof makeLogg
         const result = await parser.parseStringPromise(content);
         const epgData: Record<string, any[]> = {};
         if (result.tv && result.tv.programme) {
-            const cutoff = Date.now() - 3600 * 1000; // 1 hour ago
             const nowTime = Date.now();
+            const native = !!options.nativeDays;
+            const cutoff = native ? nowTime - 24 * 3600 * 1000 : nowTime - 3600 * 1000;
+            const horizon = native ? nowTime + options.nativeDays! * 24 * 3600 * 1000 : Infinity;
             let eventCount = 0;
             for (const prog of result.tv.programme) {
                 // Yield every 5000 programmes to keep the event loop responsive
@@ -42,6 +50,7 @@ export async function parseEPG(content: string, log?: ReturnType<typeof makeLogg
                 if (stopDate.getTime() < cutoff) continue;
 
                 const startDate = parseEPGTime(prog.$.start);
+                if (startDate.getTime() > horizon) continue;
 
                 const ch = prog.$.channel;
                 if (!epgData[ch]) epgData[ch] = [];
@@ -55,6 +64,7 @@ export async function parseEPG(content: string, log?: ReturnType<typeof makeLogg
 
             for (const ch in epgData) {
                 epgData[ch].sort((a, b) => a.start - b.start);
+                if (native) continue;
                 let futureCount = 0;
                 epgData[ch] = epgData[ch].filter(p => {
                     const startTime = p.start;

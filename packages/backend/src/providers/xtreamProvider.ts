@@ -100,7 +100,9 @@ export async function fetchData(addonInstance: any) {
                         addonInstance.log?.warn(`[EPG] Content-Length too large (${sizeMb} MB), skipping download`);
                     } else {
                         const epgContent = decodeEPGBody(Buffer.from(await epgResp.arrayBuffer()));
-                        addonInstance.epgData = await parseEPG(epgContent, addonInstance.log);
+                        addonInstance.epgData = await parseEPG(epgContent, addonInstance.log, {
+                            nativeDays: addonInstance.nativeEpg ? env.EPG_NATIVE_DAYS : undefined,
+                        });
                         addonInstance.lastEpgUpdate = Date.now();
                     }
                 }
