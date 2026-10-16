@@ -15,7 +15,7 @@
           <button v-if="manifestUrl" class="btn" @click="copyManifest">{{ copyLabel }}</button>
         </template>
       </div>
-      <button v-if="isReady" class="btn" style="margin-top: 14px" @click="$emit('close')">Close</button>
+      <button v-if="isReady" class="btn overlay-close" @click="$emit('close')">Close</button>
     </div>
   </div>
 </template>
