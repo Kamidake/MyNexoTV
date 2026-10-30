@@ -2,7 +2,7 @@ import crypto from 'crypto';
 import LRUCache from '../utils/lruCache';
 import * as sqliteCache from '../utils/sqliteCache';
 import { makeLogger } from '../utils/logger';
-import { parseEPG } from '../parsers/epgParser';
+import { parseEPG, getCurrentProgram, getUpcomingPrograms } from '../parsers/epgParser';
 import env from '../config/env';
 import * as xtreamProvider from '../providers/xtreamProvider';
 import * as iptvOrgProvider from '../providers/iptvOrgProvider';
@@ -87,16 +87,10 @@ export function createCacheKey(config: AddonConfig) {
             reformatLogos: !!config.reformatLogos
         };
     }
-    // Only the non-default shape joins the key, so existing channel ids stay the same
     if (config.posterShape === 'landscape') minimal.posterShape = 'landscape';
     return crypto.createHash('md5').update(stableStringify(minimal)).digest('hex');
 }
 
-/**
- * Key for builds and stored data. The cache key leaves the Xtream password out so
- * channel ids survive a password change, but data fetched with one password holds
- * stream URLs with that password, so it must never be served to another one.
- */
 export function createStorageKey(config: AddonConfig, cacheKey = createCacheKey(config)) {
     if ((config.provider || 'xtream') !== 'xtream') return cacheKey;
     const secret = crypto.createHash('sha256').update(String(config.xtreamPassword ?? '')).digest('hex').slice(0, 16);
@@ -131,9 +125,7 @@ export class M3UEPGAddon {
     private _timerPausedUntil: number | null = null;
     cacheTtl: number;
     nativeEpg: boolean;
-    /** Steps of the provider fetch in progress, read by the providers. */
     report: SourceReport | null = null;
-    /** Steps and counts of the last finished provider fetch, read by the check endpoint. */
     lastReport: SourceReport | null = null;
     log: ReturnType<typeof makeLogger>;
 
@@ -179,12 +171,6 @@ export class M3UEPGAddon {
         if (this.providerName === 'iptv-org' || this.providerName === 'm3u') {
             this.config.reformatLogos = true;
         }
-
-        this.log.debug('Addon instance created', {
-            provider: this.providerName,
-            cacheKey: this.cacheKey,
-            epgOffsetHours: this.config.epgOffsetHours
-        });
     }
 
     async saveChannelsToCache() {
@@ -198,7 +184,6 @@ export class M3UEPGAddon {
             xtreamEtag: this.xtreamEtag ?? null,
             lastEpgUpdate: this.lastEpgUpdate ?? null,
         }, this.cacheTtl);
-        this.log.debug('Channels saved to cache', { count: this.channels.length });
     }
 
     async loadChannelsFromCache() {
@@ -213,7 +198,6 @@ export class M3UEPGAddon {
             this.iptvOrgEtag = cached.iptvOrgEtag ?? null;
             this.xtreamEtag = cached.xtreamEtag ?? null;
             this.lastEpgUpdate = cached.lastEpgUpdate ?? null;
-            this.log.debug('Channels loaded from cache', { count: this.channels.length });
         }
     }
 
@@ -225,7 +209,6 @@ export class M3UEPGAddon {
         if (!CACHE_ENABLED) return;
         if (!this.epgData || Object.keys(this.epgData).length === 0) return;
         sqliteCache.set(this.epgCacheKey(), { epgData: this.epgData }, this.cacheTtl);
-        this.log.debug('EPG saved to cache', { channels: Object.keys(this.epgData).length });
     }
 
     async loadEpgFromCache() {
@@ -233,7 +216,6 @@ export class M3UEPGAddon {
         const cached = sqliteCache.get(this.epgCacheKey());
         if (cached) {
             this.epgData = cached.epgData || {};
-            this.log.debug('EPG loaded from cache', { channels: Object.keys(this.epgData).length });
         }
     }
 
@@ -263,25 +245,17 @@ export class M3UEPGAddon {
                 genreExtra.options = groups;
             }
         }
-        this.log.debug('Catalog genres built', { tvGenres: tvCatalog?.genres?.length || 0 });
     }
 
     async updateData(force = false) {
         const now = Date.now();
         if (!force && CACHE_ENABLED) {
-            if (this.lastUpdate && now - this.lastUpdate < this.updateInterval) {
-                this.log.debug('Skip update (global interval)');
-                return;
-            }
-            if (this.channels.length && now - this.lastUpdate < env.MIN_UPDATE_INTERVAL_MS) {
-                this.log.debug('Skip update (recent minor interval)');
-                return;
-            }
+            if (this.lastUpdate && now - this.lastUpdate < this.updateInterval) return;
+            if (this.channels.length && now - this.lastUpdate < env.MIN_UPDATE_INTERVAL_MS) return;
         }
         const report = new SourceReport();
         this.report = report;
         try {
-            const start = Date.now();
             const providerModule = PROVIDER_MAP[this.providerName];
             if (!providerModule) throw new Error(`Unknown provider: ${this.providerName}`);
             const epgUpdateTimeBefore = this.lastEpgUpdate;
@@ -296,12 +270,7 @@ export class M3UEPGAddon {
                 }
             }
             this.buildGenresInManifest();
-            this.log.debug('Data update complete', {
-                channels: this.channels.length,
-                ms: Date.now() - start
-            });
         } catch (e: any) {
-            this.log.error('[UPDATE] Failed:', e.message);
             throw e;
         } finally {
             report.finishedAt = Date.now();
@@ -310,9 +279,7 @@ export class M3UEPGAddon {
         }
     }
 
-    /** Counts what the fetch produced and writes the counts into the step details. */
     private async finishReport(report: SourceReport) {
-        // A guide kept from an earlier download lives in the cache, not in memory
         if (Object.keys(this.epgData).length === 0 && report.steps.some(s => s.id === 'guide' && s.status === 'skip')) {
             await this.loadEpgFromCache();
         }
@@ -329,34 +296,27 @@ export class M3UEPGAddon {
 
     private _getRefreshCooldownMs(): number {
         if (this._consecutiveRefreshFailures <= 0) return 0;
-        if (this._consecutiveRefreshFailures === 1) return 60_000;      // 1 min
-        if (this._consecutiveRefreshFailures === 2) return 5 * 60_000;  // 5 min
-        return 30 * 60_000;                                             // 30 min
+        if (this._consecutiveRefreshFailures === 1) return 60_000;
+        if (this._consecutiveRefreshFailures === 2) return 5 * 60_000;
+        return 30 * 60_000;
     }
 
     async refreshOnFirstCatalogRequest() {
-        // Exponential backoff: don't hammer a failing provider
         if (this._refreshFailedAt !== null) {
             const cooldown = this._getRefreshCooldownMs();
             if (Date.now() - this._refreshFailedAt < cooldown) return;
         }
-
         if (this.firstCatalogRefreshDone) return;
         if (this.firstCatalogRefreshPromise) {
             await this.firstCatalogRefreshPromise;
             return;
         }
-
         const JUST_FETCHED_MS = 2 * 60 * 1000;
         if (this.lastUpdate && (Date.now() - this.lastUpdate < JUST_FETCHED_MS)) {
             this.firstCatalogRefreshDone = true;
             return;
         }
-
         this.firstCatalogRefreshPromise = (async () => {
-            // Reset ETags so the forced re-fetch is unconditional (not a 304).
-            // Without this, channels evicted from RAM + a cached ETag would cause
-            // fetchData to get a 304, save 0 channels, and wipe the valid cache.
             this.m3uEtag = null;
             this.m3uLastModified = null;
             this.iptvOrgEtag = null;
@@ -367,15 +327,10 @@ export class M3UEPGAddon {
             }
             await this.updateData(true);
             this.firstCatalogRefreshDone = true;
-            this.log.debug('Bootstrap catalog refresh completed', {
-                cacheKey: this.cacheKey,
-                channels: this.channels.length
-            });
         })();
-
         try {
             await this.firstCatalogRefreshPromise;
-            this._consecutiveRefreshFailures = 0;  // reset on success
+            this._consecutiveRefreshFailures = 0;
             this._refreshFailedAt = null;
         } catch (e) {
             this._consecutiveRefreshFailures++;
@@ -399,7 +354,6 @@ export class M3UEPGAddon {
         } else {
             finalUrl = `https://placehold.co/${w}x${h}/2b2b2b/FFFFFF.png?text=${encodeURIComponent(item.name || 'TV')}`;
         }
-
         if (this.config.reformatLogos && finalUrl.startsWith('http') && !finalUrl.includes('wsrv.nl') && !finalUrl.includes('placehold.co')) {
             if (finalUrl.includes('imgur.com')) {
                 finalUrl = `https://proxy.duckduckgo.com/iu/?u=${encodeURIComponent(finalUrl)}`;
@@ -450,7 +404,6 @@ export class M3UEPGAddon {
         return videos;
     }
 
-    /** Full meta for one channel on the native guide grid for a UTC day (YYYY-MM-DD). */
     generateGuideMeta(item: any, date: string) {
         const dayStart = Date.parse(`${date}T00:00:00.000Z`);
         const dayEnd = dayStart + 24 * 3600000;
@@ -482,7 +435,6 @@ export class M3UEPGAddon {
         }
 
         const streams = [{ url: item.url, title: `${item.name} - Live`, behaviorHints }];
-
         const xtreamRe = /^https?:\/\/[^/]+\/[^/]+\/[^/]+\/(\d+)$/;
         if (xtreamRe.test(item.url)) {
             streams.unshift({
@@ -491,7 +443,6 @@ export class M3UEPGAddon {
                 behaviorHints,
             });
         }
-
         return streams;
     }
 
@@ -502,67 +453,19 @@ export class M3UEPGAddon {
         if (!item) return null;
 
         const epgId = item.attributes?.['tvg-id'] || item.attributes?.['tvg-name'];
-        const programmes = epgId ? this.epgData[epgId] : undefined;
+        const current = getCurrentProgram(this.epgData, epgId, this.config.epgOffsetHours as number);
+        const upcoming = getUpcomingPrograms(this.epgData, epgId, 3, this.config.epgOffsetHours as number);
         
-        let current: any = null;
-        const upcoming: any[] = [];
         let description = '';
 
-        if (programmes && programmes.length > 0) {
-            const now = Date.now();
-            const offsetMs = (this.config.epgOffsetHours as number || 0) * 3600000;
-
-            // Sort programs by start time to ensure chronological order
-            const sortedProgrammes = [...programmes].sort((a, b) => a.start - b.start);
-
-            for (let i = 0; i < sortedProgrammes.length; i++) {
-                const p = sortedProgrammes[i];
-                const start = p.start + offsetMs;
-                
-                const nextShow = sortedProgrammes[i + 1];
-                const nextStart = nextShow ? (nextShow.start + offsetMs) : null;
-
-                let stop = p.stop ? (p.stop + offsetMs) : null;
-
-                // 1. Fix missing or invalid stop times
-                if (!stop || stop <= start) {
-                    stop = nextStart ? nextStart : (start + 3600000);
-                }
-
-                // 2. Bridge EPG gaps: If there is a dead zone between this show ending 
-                // and the next starting, extend this show so "NOW" never disappears.
-                if (nextStart && nextStart > stop && (nextStart - stop) <= 7200000) {
-                    stop = nextStart;
-                }
-
-                // STRICT MATCH: Only show as "NOW" if current time is genuinely inside the schedule window (now with gapless times)
-                if (now >= start && now < stop) {
-                    current = {
-                        title: p.title,
-                        description: p.desc,
-                        startTime: new Date(start),
-                        stopTime: new Date(stop)
-                    };
-                } 
-                // FUTURE MATCH: Only show as "UPCOMING" if it actually starts in the future
-                else if (start > now && upcoming.length < 3) {
-                    upcoming.push({
-                        title: p.title,
-                        startTime: new Date(start)
-                    });
-                }
-            }
-        }
-
-        // Build the description text
         if (current) {
-            const startStr = current.startTime?.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) || '';
-            const endStr = current.stopTime?.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) || '';
-            description += `📡 NOW: ${current.title}${startStr && endStr ? ` (${startStr}-${endStr})` : ''}`;
+            const start = current.startTime?.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) || '';
+            const end = current.stopTime?.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) || '';
+            description += `📡 NOW: ${current.title}${start && end ? ` (${start}-${end})` : ''}`;
             if (current.description) description += `\n\n${current.description}`;
         }
         
-        if (upcoming.length > 0) {
+        if (upcoming.length) {
             if (description) description += '\n\n';
             description += '📅 UPCOMING:\n';
             for (const p of upcoming) {
@@ -600,24 +503,19 @@ export class M3UEPGAddon {
     }
 
     private _startUpdateTimer() {
-        if (this._updateTimer !== null) return; // already running: guard against double-start
+        if (this._updateTimer !== null) return; 
         this._updateTimer = setInterval(() => {
-            // Skip if circuit is open
             if (this._timerPausedUntil !== null && Date.now() < this._timerPausedUntil) return;
-
             this.updateData().then(() => {
                 this._timerConsecutiveFailures = 0;
                 this._timerPausedUntil = null;
             }).catch((e: any) => {
                 this._timerConsecutiveFailures++;
                 if (this._timerConsecutiveFailures >= 3) {
-                    this._timerPausedUntil = Date.now() + 30 * 60_000; // pause 30 min
-                    this.log.warn(`[TIMER] Circuit open after ${this._timerConsecutiveFailures} failures, pausing 30 min`);
+                    this._timerPausedUntil = Date.now() + 30 * 60_000; 
                 }
-                this.log.error('[TIMER] Background update failed:', e.message);
             });
         }, env.UPDATE_INTERVAL_MS);
-        // unref: don't prevent Node.js process exit if this is the only active handle
         if (typeof (this._updateTimer as any).unref === 'function') {
             (this._updateTimer as any).unref();
         }
@@ -625,13 +523,12 @@ export class M3UEPGAddon {
 
     _evictFromMemory() {
         clearTimeout(this._evictTimer);
-        clearInterval(this._updateTimer as any);   // kill update timer
-        this._updateTimer = null;           // allow GC and re-start check
+        clearInterval(this._updateTimer as any);
+        this._updateTimer = null; 
         this._evictTimer = null;
         this.channels = [];
         this.channelMap = new Map();
         this.epgData = {};
-        this.log.debug('Data evicted from RAM', { cacheKey: this.cacheKey });
     }
 
     async ensureDataLoaded() {
@@ -647,7 +544,7 @@ export class M3UEPGAddon {
         this._loadPromise = this.loadChannelsFromCache().finally(() => { this._loadPromise = null; });
         await this._loadPromise;
         this._resetEvictTimer();
-        this._startUpdateTimer();    // start/resume background updates
+        this._startUpdateTimer();
     }
 
     async getChannelsForCatalog() {
