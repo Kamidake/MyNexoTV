@@ -515,7 +515,7 @@ export class M3UEPGAddon {
         
         if (upcoming.length > 0) {
             if (description) description += '\n\n';
-            description += '📅 UPCOMING:\n';
+            description += '📅 SCHEDULE:\n';
             for (const p of upcoming) {
                 description += `${p.startTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - ${p.title}\n`;
             }
