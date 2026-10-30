@@ -2,7 +2,7 @@ import crypto from 'crypto';
 import LRUCache from '../utils/lruCache';
 import * as sqliteCache from '../utils/sqliteCache';
 import { makeLogger } from '../utils/logger';
-import { parseEPG, getCurrentProgram, getUpcomingPrograms } from '../parsers/epgParser';
+import { parseEPG } from '../parsers/epgParser';
 import env from '../config/env';
 import * as xtreamProvider from '../providers/xtreamProvider';
 import * as iptvOrgProvider from '../providers/iptvOrgProvider';
@@ -206,7 +206,7 @@ export class M3UEPGAddon {
         const cached = sqliteCache.getRaw('addon:channels:' + this.storageKey);
         if (cached) {
             this.channels = cached.channels || [];
-            this.channelMap = new Map(this.channels.map(c => [c.id, c]));
+            this.channelMap = new Map(this.channels.map((c: any) => [c.id, c]));
             this.lastUpdate = cached.lastUpdate || 0;
             this.m3uEtag = cached.m3uEtag ?? null;
             this.m3uLastModified = cached.m3uLastModified ?? null;
@@ -250,7 +250,7 @@ export class M3UEPGAddon {
             const groups = [
                 ...new Set(
                     this.channels
-                        .map(c => c.category || c.attributes?.['group-title'])
+                        .map((c: any) => c.category || c.attributes?.['group-title'])
                         .filter(Boolean)
                         .map((s: string) => s.trim())
                 )
@@ -287,7 +287,7 @@ export class M3UEPGAddon {
             const epgUpdateTimeBefore = this.lastEpgUpdate;
             await providerModule.fetchData(this);
             await this.finishReport(report);
-            this.channelMap = new Map(this.channels.map(c => [c.id, c]));
+            this.channelMap = new Map(this.channels.map((c: any) => [c.id, c]));
             this.lastUpdate = Date.now();
             if (CACHE_ENABLED && this.channels.length > 0) {
                 await this.saveChannelsToCache();
@@ -331,7 +331,7 @@ export class M3UEPGAddon {
         if (this._consecutiveRefreshFailures <= 0) return 0;
         if (this._consecutiveRefreshFailures === 1) return 60_000;      // 1 min
         if (this._consecutiveRefreshFailures === 2) return 5 * 60_000;  // 5 min
-        return 30 * 60_000;                                              // 30 min
+        return 30 * 60_000;                                             // 30 min
     }
 
     async refreshOnFirstCatalogRequest() {
@@ -497,25 +497,13 @@ export class M3UEPGAddon {
 
     async getDetailedMeta(id: string) {
         await this.ensureDataLoaded();
-        await this.ensureEpgLoaded();
         const item = this.channelMap.get(id);
         if (!item) return null;
-        const epgId = item.attributes?.['tvg-id'] || item.attributes?.['tvg-name'];
-        const current = getCurrentProgram(this.epgData, epgId, this.config.epgOffsetHours as number);
-        const upcoming = getUpcomingPrograms(this.epgData, epgId, 3, this.config.epgOffsetHours as number);
-        let description = `📺 CHANNEL: ${item.name}`;
-        if (current) {
-            const start = current.startTime?.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) || '';
-            const end = current.stopTime?.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) || '';
-            description += `\n\n📡 NOW: ${current.title}${start && end ? ` (${start}-${end})` : ''}`;
-            if (current.description) description += `\n\n${current.description}`;
+        
+        if (this.nativeEpg) {
+            await this.ensureEpgLoaded();
         }
-        if (upcoming.length) {
-            description += '\n\n📅 UPCOMING:\n';
-            for (const p of upcoming) {
-                description += `${p.startTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - ${p.title}\n`;
-            }
-        }
+
         const logoUrl = this.deriveFallbackLogoUrl(item);
         return {
             id: item.id,
@@ -524,7 +512,7 @@ export class M3UEPGAddon {
             poster: logoUrl,
             background: logoUrl,
             posterShape: this.posterShape,
-            description,
+            description: `📺 CHANNEL: ${item.name}`,
             genres: item.category
                 ? [item.category]
                 : (item.attributes?.['group-title'] ? [item.attributes['group-title']] : ['Live TV']),
@@ -567,7 +555,7 @@ export class M3UEPGAddon {
 
     _evictFromMemory() {
         clearTimeout(this._evictTimer);
-        clearInterval(this._updateTimer);   // kill update timer
+        clearInterval(this._updateTimer as any);   // kill update timer
         this._updateTimer = null;           // allow GC and re-start check
         this._evictTimer = null;
         this.channels = [];
