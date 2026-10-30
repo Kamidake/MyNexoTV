@@ -497,7 +497,7 @@ export class M3UEPGAddon {
 
     async getDetailedMeta(id: string) {
         await this.ensureDataLoaded();
-        await this.ensureEpgLoaded(); // Ensure EPG data is loaded for the text descriptions
+        await this.ensureEpgLoaded(); 
         const item = this.channelMap.get(id);
         if (!item) return null;
 
@@ -508,14 +508,24 @@ export class M3UEPGAddon {
         const upcoming: any[] = [];
         let description = '';
 
-        // Manually find the current and upcoming programs bypassing the parser helpers
         if (programmes && programmes.length > 0) {
             const now = Date.now();
             const offsetMs = (this.config.epgOffsetHours as number || 0) * 3600000;
 
-            for (const p of programmes) {
+            // Sort programs by start time to ensure chronological order
+            const sortedProgrammes = [...programmes].sort((a, b) => a.start - b.start);
+
+            for (let i = 0; i < sortedProgrammes.length; i++) {
+                const p = sortedProgrammes[i];
                 const start = p.start + offsetMs;
-                const stop = p.stop + offsetMs;
+                
+                // Failsafe: If the EPG provider didn't include a stop time, 
+                // assume it stops when the next show starts (or 1 hour later if it's the last show)
+                let stop = p.stop ? (p.stop + offsetMs) : null;
+                if (!stop || isNaN(stop)) {
+                    const nextShow = sortedProgrammes[i + 1];
+                    stop = nextShow ? (nextShow.start + offsetMs) : (start + 3600000);
+                }
 
                 // Check if the program is playing right now
                 if (start <= now && stop > now) {
@@ -552,7 +562,6 @@ export class M3UEPGAddon {
             }
         }
 
-        // Fallback if no EPG data is available
         if (!description) {
             description = '📡 Live Channel';
         }
