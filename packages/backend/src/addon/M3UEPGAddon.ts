@@ -512,35 +512,47 @@ export class M3UEPGAddon {
             const now = Date.now();
             const offsetMs = (this.config.epgOffsetHours as number || 0) * 3600000;
 
-            // Sort programs by start time to ensure chronological order
             const sortedProgrammes = [...programmes].sort((a, b) => a.start - b.start);
+            
+            let currentIndex = -1;
 
+            // NEW LOGIC: Find the very last program that started before 'now'
             for (let i = 0; i < sortedProgrammes.length; i++) {
-                const p = sortedProgrammes[i];
+                if ((sortedProgrammes[i].start + offsetMs) <= now) {
+                    currentIndex = i;
+                } else {
+                    break;
+                }
+            }
+
+            // FAILSAFE: If all programs start in the future, just use the very first one as "NOW"
+            if (currentIndex === -1 && sortedProgrammes.length > 0) {
+                currentIndex = 0;
+            }
+
+            if (currentIndex !== -1) {
+                const p = sortedProgrammes[currentIndex];
                 const start = p.start + offsetMs;
-                
-                // Failsafe: If the EPG provider didn't include a stop time, 
-                // assume it stops when the next show starts (or 1 hour later if it's the last show)
                 let stop = p.stop ? (p.stop + offsetMs) : null;
+                
                 if (!stop || isNaN(stop)) {
-                    const nextShow = sortedProgrammes[i + 1];
+                    const nextShow = sortedProgrammes[currentIndex + 1];
                     stop = nextShow ? (nextShow.start + offsetMs) : (start + 3600000);
                 }
 
-                // Check if the program is playing right now
-                if (start <= now && stop > now) {
-                    current = {
-                        title: p.title,
-                        description: p.desc,
-                        startTime: new Date(start),
-                        stopTime: new Date(stop)
-                    };
-                } 
-                // Check if it's in the future (limit to 3)
-                else if (start > now && upcoming.length < 3) {
+                current = {
+                    title: p.title,
+                    description: p.desc,
+                    startTime: new Date(start),
+                    stopTime: new Date(stop)
+                };
+
+                // Populate upcoming
+                for (let i = currentIndex + 1; i < sortedProgrammes.length && upcoming.length < 3; i++) {
+                    const up = sortedProgrammes[i];
                     upcoming.push({
-                        title: p.title,
-                        startTime: new Date(start)
+                        title: up.title,
+                        startTime: new Date(up.start + offsetMs)
                     });
                 }
             }
