@@ -512,47 +512,34 @@ export class M3UEPGAddon {
             const now = Date.now();
             const offsetMs = (this.config.epgOffsetHours as number || 0) * 3600000;
 
+            // Sort programs by start time to ensure chronological order
             const sortedProgrammes = [...programmes].sort((a, b) => a.start - b.start);
-            
-            let currentIndex = -1;
 
-            // NEW LOGIC: Find the very last program that started before 'now'
             for (let i = 0; i < sortedProgrammes.length; i++) {
-                if ((sortedProgrammes[i].start + offsetMs) <= now) {
-                    currentIndex = i;
-                } else {
-                    break;
-                }
-            }
-
-            // FAILSAFE: If all programs start in the future, just use the very first one as "NOW"
-            if (currentIndex === -1 && sortedProgrammes.length > 0) {
-                currentIndex = 0;
-            }
-
-            if (currentIndex !== -1) {
-                const p = sortedProgrammes[currentIndex];
+                const p = sortedProgrammes[i];
                 const start = p.start + offsetMs;
-                let stop = p.stop ? (p.stop + offsetMs) : null;
                 
+                // Auto-calculate missing stop times using the next show's start time
+                let stop = p.stop ? (p.stop + offsetMs) : null;
                 if (!stop || isNaN(stop)) {
-                    const nextShow = sortedProgrammes[currentIndex + 1];
+                    const nextShow = sortedProgrammes[i + 1];
                     stop = nextShow ? (nextShow.start + offsetMs) : (start + 3600000);
                 }
 
-                current = {
-                    title: p.title,
-                    description: p.desc,
-                    startTime: new Date(start),
-                    stopTime: new Date(stop)
-                };
-
-                // Populate upcoming
-                for (let i = currentIndex + 1; i < sortedProgrammes.length && upcoming.length < 3; i++) {
-                    const up = sortedProgrammes[i];
+                // STRICT MATCH: Only show as "NOW" if current time is genuinely inside the schedule window
+                if (now >= start && now < stop) {
+                    current = {
+                        title: p.title,
+                        description: p.desc,
+                        startTime: new Date(start),
+                        stopTime: new Date(stop)
+                    };
+                } 
+                // FUTURE MATCH: Only show as "UPCOMING" if it actually starts in the future
+                else if (start > now && upcoming.length < 3) {
                     upcoming.push({
-                        title: up.title,
-                        startTime: new Date(up.start + offsetMs)
+                        title: p.title,
+                        startTime: new Date(start)
                     });
                 }
             }
