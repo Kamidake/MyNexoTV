@@ -163,10 +163,12 @@ export class M3UEPGAddon {
             const n = parseFloat(this.config.epgOffsetHours);
             if (!isNaN(n)) this.config.epgOffsetHours = n;
         }
+        
+        // Default to 8 (Philippine Time / UTC+8) if no valid offset is provided
         if (typeof this.config.epgOffsetHours !== 'number' || !isFinite(this.config.epgOffsetHours as number))
-            this.config.epgOffsetHours = 0;
+            this.config.epgOffsetHours = 8;
         if (Math.abs(this.config.epgOffsetHours as number) > 48)
-            this.config.epgOffsetHours = 0;
+            this.config.epgOffsetHours = 8;
 
         if (this.providerName === 'iptv-org' || this.providerName === 'm3u') {
             this.config.reformatLogos = true;
@@ -453,19 +455,65 @@ export class M3UEPGAddon {
         if (!item) return null;
 
         const epgId = item.attributes?.['tvg-id'] || item.attributes?.['tvg-name'];
-        const current = getCurrentProgram(this.epgData, epgId, this.config.epgOffsetHours as number);
-        const upcoming = getUpcomingPrograms(this.epgData, epgId, 3, this.config.epgOffsetHours as number);
+        const programmes = epgId ? this.epgData[epgId] : undefined;
         
+        let current: any = null;
+        const upcoming: any[] = [];
         let description = '';
 
+        if (programmes && programmes.length > 0) {
+            const now = Date.now();
+            const offsetMs = (this.config.epgOffsetHours as number || 0) * 3600000;
+
+            const sortedProgrammes = [...programmes].sort((a, b) => a.start - b.start);
+
+            for (let i = 0; i < sortedProgrammes.length; i++) {
+                const p = sortedProgrammes[i];
+                const start = p.start + offsetMs;
+                
+                const nextShow = sortedProgrammes[i + 1];
+                const nextStart = nextShow ? (nextShow.start + offsetMs) : null;
+
+                let stop = p.stop ? (p.stop + offsetMs) : null;
+
+                // 1. Fix missing or invalid stop times
+                if (!stop || stop <= start) {
+                    stop = nextStart ? nextStart : (start + 3600000);
+                }
+
+                // 2. Bridge EPG gaps
+                if (nextStart && nextStart > stop && (nextStart - stop) <= 7200000) {
+                    stop = nextStart;
+                }
+
+                // STRICT MATCH (now with gapless times)
+                if (now >= start && now < stop) {
+                    current = {
+                        title: p.title,
+                        description: p.desc,
+                        startTime: new Date(start),
+                        stopTime: new Date(stop)
+                    };
+                } 
+                // UPCOMING MATCH
+                else if (start > now && upcoming.length < 3) {
+                    upcoming.push({
+                        title: p.title,
+                        startTime: new Date(start)
+                    });
+                }
+            }
+        }
+
+        // Build the description text
         if (current) {
-            const start = current.startTime?.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) || '';
-            const end = current.stopTime?.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) || '';
-            description += `📡 NOW: ${current.title}${start && end ? ` (${start}-${end})` : ''}`;
+            const startStr = current.startTime?.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) || '';
+            const endStr = current.stopTime?.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) || '';
+            description += `📡 NOW: ${current.title}${startStr && endStr ? ` (${startStr}-${endStr})` : ''}`;
             if (current.description) description += `\n\n${current.description}`;
         }
         
-        if (upcoming.length) {
+        if (upcoming.length > 0) {
             if (description) description += '\n\n';
             description += '📅 UPCOMING:\n';
             for (const p of upcoming) {
