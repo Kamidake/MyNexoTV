@@ -519,14 +519,23 @@ export class M3UEPGAddon {
                 const p = sortedProgrammes[i];
                 const start = p.start + offsetMs;
                 
-                // Auto-calculate missing stop times using the next show's start time
+                const nextShow = sortedProgrammes[i + 1];
+                const nextStart = nextShow ? (nextShow.start + offsetMs) : null;
+
                 let stop = p.stop ? (p.stop + offsetMs) : null;
-                if (!stop || isNaN(stop)) {
-                    const nextShow = sortedProgrammes[i + 1];
-                    stop = nextShow ? (nextShow.start + offsetMs) : (start + 3600000);
+
+                // 1. Fix missing or invalid stop times
+                if (!stop || stop <= start) {
+                    stop = nextStart ? nextStart : (start + 3600000);
                 }
 
-                // STRICT MATCH: Only show as "NOW" if current time is genuinely inside the schedule window
+                // 2. Bridge EPG gaps: If there is a dead zone between this show ending 
+                // and the next starting, extend this show so "NOW" never disappears.
+                if (nextStart && nextStart > stop && (nextStart - stop) <= 7200000) {
+                    stop = nextStart;
+                }
+
+                // STRICT MATCH: Only show as "NOW" if current time is genuinely inside the schedule window (now with gapless times)
                 if (now >= start && now < stop) {
                     current = {
                         title: p.title,
