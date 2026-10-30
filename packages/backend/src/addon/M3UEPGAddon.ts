@@ -2,7 +2,7 @@ import crypto from 'crypto';
 import LRUCache from '../utils/lruCache';
 import * as sqliteCache from '../utils/sqliteCache';
 import { makeLogger } from '../utils/logger';
-import { parseEPG, getCurrentProgram, getUpcomingPrograms } from '../parsers/epgParser';
+import { parseEPG } from '../parsers/epgParser';
 import env from '../config/env';
 import * as xtreamProvider from '../providers/xtreamProvider';
 import * as iptvOrgProvider from '../providers/iptvOrgProvider';
@@ -502,19 +502,49 @@ export class M3UEPGAddon {
         if (!item) return null;
 
         const epgId = item.attributes?.['tvg-id'] || item.attributes?.['tvg-name'];
-        const current = getCurrentProgram(this.epgData, epgId, this.config.epgOffsetHours as number);
-        const upcoming = getUpcomingPrograms(this.epgData, epgId, 3, this.config.epgOffsetHours as number);
+        const programmes = epgId ? this.epgData[epgId] : undefined;
         
+        let current: any = null;
+        const upcoming: any[] = [];
         let description = '';
 
+        // Manually find the current and upcoming programs bypassing the parser helpers
+        if (programmes && programmes.length > 0) {
+            const now = Date.now();
+            const offsetMs = (this.config.epgOffsetHours as number || 0) * 3600000;
+
+            for (const p of programmes) {
+                const start = p.start + offsetMs;
+                const stop = p.stop + offsetMs;
+
+                // Check if the program is playing right now
+                if (start <= now && stop > now) {
+                    current = {
+                        title: p.title,
+                        description: p.desc,
+                        startTime: new Date(start),
+                        stopTime: new Date(stop)
+                    };
+                } 
+                // Check if it's in the future (limit to 3)
+                else if (start > now && upcoming.length < 3) {
+                    upcoming.push({
+                        title: p.title,
+                        startTime: new Date(start)
+                    });
+                }
+            }
+        }
+
+        // Build the description text
         if (current) {
-            const start = current.startTime?.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) || '';
-            const end = current.stopTime?.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) || '';
-            description += `📡 NOW: ${current.title}${start && end ? ` (${start}-${end})` : ''}`;
+            const startStr = current.startTime?.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) || '';
+            const endStr = current.stopTime?.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) || '';
+            description += `📡 NOW: ${current.title}${startStr && endStr ? ` (${startStr}-${endStr})` : ''}`;
             if (current.description) description += `\n\n${current.description}`;
         }
         
-        if (upcoming.length) {
+        if (upcoming.length > 0) {
             if (description) description += '\n\n';
             description += '📅 UPCOMING:\n';
             for (const p of upcoming) {
