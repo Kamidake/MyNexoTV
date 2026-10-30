@@ -2,7 +2,7 @@ import crypto from 'crypto';
 import LRUCache from '../utils/lruCache';
 import * as sqliteCache from '../utils/sqliteCache';
 import { makeLogger } from '../utils/logger';
-import { parseEPG } from '../parsers/epgParser';
+import { parseEPG, getCurrentProgram, getUpcomingPrograms } from '../parsers/epgParser';
 import env from '../config/env';
 import * as xtreamProvider from '../providers/xtreamProvider';
 import * as iptvOrgProvider from '../providers/iptvOrgProvider';
@@ -497,11 +497,34 @@ export class M3UEPGAddon {
 
     async getDetailedMeta(id: string) {
         await this.ensureDataLoaded();
+        await this.ensureEpgLoaded(); // Ensure EPG data is loaded for the text descriptions
         const item = this.channelMap.get(id);
         if (!item) return null;
+
+        const epgId = item.attributes?.['tvg-id'] || item.attributes?.['tvg-name'];
+        const current = getCurrentProgram(this.epgData, epgId, this.config.epgOffsetHours as number);
+        const upcoming = getUpcomingPrograms(this.epgData, epgId, 3, this.config.epgOffsetHours as number);
         
-        if (this.nativeEpg) {
-            await this.ensureEpgLoaded();
+        let description = '';
+
+        if (current) {
+            const start = current.startTime?.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) || '';
+            const end = current.stopTime?.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) || '';
+            description += `📡 NOW: ${current.title}${start && end ? ` (${start}-${end})` : ''}`;
+            if (current.description) description += `\n\n${current.description}`;
+        }
+        
+        if (upcoming.length) {
+            if (description) description += '\n\n';
+            description += '📅 UPCOMING:\n';
+            for (const p of upcoming) {
+                description += `${p.startTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - ${p.title}\n`;
+            }
+        }
+
+        // Fallback if no EPG data is available
+        if (!description) {
+            description = '📡 Live Channel';
         }
 
         const logoUrl = this.deriveFallbackLogoUrl(item);
@@ -512,7 +535,7 @@ export class M3UEPGAddon {
             poster: logoUrl,
             background: logoUrl,
             posterShape: this.posterShape,
-            description: `📺 CHANNEL: ${item.name}`,
+            description: description,
             genres: item.category
                 ? [item.category]
                 : (item.attributes?.['group-title'] ? [item.attributes['group-title']] : ['Live TV']),
